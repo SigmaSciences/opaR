@@ -202,7 +202,7 @@ begin
     FEngine := CreateInstance(EngineName, dllName);
 
     if initialize then
-      FEngine.Initialize;
+      FEngine.Initialize(parameter, device);
   end;
 
   if FEngine.Disposed then
