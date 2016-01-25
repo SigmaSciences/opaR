@@ -35,7 +35,6 @@ internal managed array to a destination managed array.
 interface
 
 uses
-  Winapi.Windows,
   System.Types,
 
   Spring.Collections,
@@ -65,12 +64,12 @@ type
 
   TRVector<T> = class abstract (TSymbolicExpression, IRVector<T>)
   private
-    function GetIndex(name: string): integer;
+    function GetIndex(const name: string): integer;
     function GetLength: integer;
     function GetDataPointer: PSEXPREC;
-    procedure SetVector(values: TArray<T>);
-    function GetValueByName(name: string): T; virtual;
-    procedure SetValueByName(name: string; value: T); virtual;
+    procedure SetVector(const values: TArray<T>);
+    function GetValueByName(const name: string): T; virtual;
+    procedure SetValueByName(const name: string; value: T); virtual;
   protected
     function GetArrayFast: TArray<T>; virtual; abstract;
     function GetDataSize: integer; virtual; abstract;
@@ -78,22 +77,22 @@ type
     function GetValue(ix: integer): T; virtual; abstract;
     procedure SetValue(ix: integer; value: T); virtual; abstract;
   public
-    constructor Create(engine: IREngine; pExpr: PSEXPREC); overload;
-    constructor Create(engine: IREngine;
+    constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
+    constructor Create(const engine: IREngine;
       expressionType: TSymbolicExpressionType; vecLength: integer); overload;
-    constructor Create(engine: IREngine;
-      expressionType: TSymbolicExpressionType; vector: IEnumerable<T>); overload;
+    constructor Create(const engine: IREngine;
+      expressionType: TSymbolicExpressionType; const vector: IEnumerable<T>); overload;
     function First: T;
     function GetEnumerator: IVectorEnumerator<T>;
     function Names: TArray<string>;
     function ToArray: TArray<T>;
     //procedure CopyTo(destination: TArray<T>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); virtual; abstract;
-    procedure SetVectorDirect(values: TArray<T>); virtual; abstract;
+    procedure SetVectorDirect(const values: TArray<T>); virtual; abstract;
     property DataPointer: PSEXPREC read GetDataPointer;
     property DataSize: integer read GetDataSize;
     property VectorLength: integer read GetLength;
     property Values[ix: integer]: T read GetValue write SetValue; default;
-    property Values[name: string]: T read GetValueByName write SetValueByName; default;
+    property Values[const name: string]: T read GetValueByName write SetValueByName; default;
   end;
 
 
@@ -130,18 +129,16 @@ end;
 { TRVector<T> }
 
 //------------------------------------------------------------------------------
-constructor TRVector<T>.Create(engine: IREngine;
+constructor TRVector<T>.Create(const engine: IREngine;
   expressionType: TSymbolicExpressionType; vecLength: integer);
 var
   pExpr: PSEXPREC;
-  allocVec: TRfnAllocVector;
 begin
   if vecLength <= 0 then
     raise EopaRException.Create('Error: Vector length must be greater than zero');
 
   // -- First get the pointer to the R expression.
-  allocVec := GetProcAddress(engine.Handle, 'Rf_allocVector');
-  pExpr := allocVec(expressionType, vecLength);
+  pExpr := Engine.Rapi.AllocVector(expressionType, vecLength);
 
   inherited Create(engine, pExpr);
 
@@ -151,13 +148,13 @@ begin
   //CopyMemory(DataPointer, @FArray[0], vecLength * DataSize);
 end;
 //------------------------------------------------------------------------------
-constructor TRVector<T>.Create(engine: IREngine; pExpr: PSEXPREC);
+constructor TRVector<T>.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
-constructor TRVector<T>.Create(engine: IREngine;
-  expressionType: TSymbolicExpressionType; vector: IEnumerable<T>);
+constructor TRVector<T>.Create(const engine: IREngine;
+  expressionType: TSymbolicExpressionType; const vector: IEnumerable<T>);
 begin
   Create(engine, expressionType, vector.Count);
   SetVector(vector.ToArray);
@@ -185,11 +182,8 @@ begin
 end;
 //------------------------------------------------------------------------------
 function TRVector<T>.GetLength: integer;
-var
-  rLength: TRFnLength;
 begin
-  rLength := GetProcAddress(EngineHandle, 'Rf_length');
-  result := rLength(Handle);     // -- Handle is the pointer (PSEXPREC) to the underlying SEXPREC structure.
+  result := Engine.Rapi.Length(Handle);     // -- Handle is the pointer (PSEXPREC) to the underlying SEXPREC structure.
 end;
 //------------------------------------------------------------------------------
 function TRVector<T>.GetOffset(index: integer): integer;
@@ -197,7 +191,7 @@ begin
   result := DataSize * index;
 end;
 //------------------------------------------------------------------------------
-function TRVector<T>.GetValueByName(name: string): T;
+function TRVector<T>.GetValueByName(const name: string): T;
 var
   ix: integer;
 begin
@@ -230,7 +224,7 @@ begin
     result[i] := namesVector[i];
 end;
 //------------------------------------------------------------------------------
-procedure TRVector<T>.SetValueByName(name: string; value: T);
+procedure TRVector<T>.SetValueByName(const name: string; value: T);
 var
   ix: integer;
 begin
@@ -239,7 +233,7 @@ begin
     SetValue(ix, value);
 end;
 //------------------------------------------------------------------------------
-function TRVector<T>.GetIndex(name: string): integer;
+function TRVector<T>.GetIndex(const name: string): integer;
 var
   namesArray: TArray<string>;
   i: integer;
@@ -262,7 +256,7 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
-procedure TRVector<T>.SetVector(values: TArray<T>);
+procedure TRVector<T>.SetVector(const values: TArray<T>);
 var
   pp: TProtectedPointer;
 begin

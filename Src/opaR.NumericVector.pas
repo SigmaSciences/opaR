@@ -22,7 +22,9 @@ THOSE OF NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 interface
 
 uses
+  {$IFDEF MSWINDOWS}
   Winapi.Windows,
+  {$ENDIF}
   System.Types,
 
   Spring.Collections,
@@ -42,13 +44,13 @@ type
     function GetValue(ix: integer): double; override;
     procedure SetValue(ix: integer; value: double); override;
   public
-    constructor Create(engine: IREngine; pExpr: PSEXPREC); overload;
-    constructor Create(engine: IREngine; vecLength: integer); overload;
-    constructor Create(engine: IREngine; vector: IEnumerable<double>); overload;
-    constructor Create(engine: IREngine; vector: TArray<double>); overload;
+    constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
+    constructor Create(const engine: IREngine; vecLength: integer); overload;
+    constructor Create(const engine: IREngine; const vector: IEnumerable<double>); overload;
+    constructor Create(const engine: IREngine; const vector: TArray<double>); overload;
     function GetArrayFast: TArray<double>; override;
-    procedure CopyTo(destination: TArray<double>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); //override;
-    procedure SetVectorDirect(values: TArray<double>); override;
+    procedure CopyTo(const destination: TArray<double>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); //override;
+    procedure SetVectorDirect(const values: TArray<double>); override;
   end;
 
 
@@ -58,37 +60,35 @@ implementation
 { TNumericVector }
 
 //------------------------------------------------------------------------------
-constructor TNumericVector.Create(engine: IREngine; vecLength: integer);
+constructor TNumericVector.Create(const engine: IREngine; vecLength: integer);
 begin
   // -- The base constructor calls Rf_allocVector
   inherited Create(engine, TSymbolicExpressionType.NumericVector, vecLength);
 end;
 //------------------------------------------------------------------------------
-constructor TNumericVector.Create(engine: IREngine; pExpr: PSEXPREC);
+constructor TNumericVector.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
   // -- pExpr is a pointer to a numeric vector.
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
-constructor TNumericVector.Create(engine: IREngine; vector: IEnumerable<double>);
+constructor TNumericVector.Create(const engine: IREngine; const vector: IEnumerable<double>);
 begin
   // -- The base constructor calls SetVector(vector.ToArray), which in turn
   // -- calls SetVectorDirect (implemented in this class).
   inherited Create(engine, TSymbolicExpressionType.NumericVector, vector);
 end;
 //------------------------------------------------------------------------------
-constructor TNumericVector.Create(engine: IREngine; vector: TArray<double>);
+constructor TNumericVector.Create(const engine: IREngine; const vector: TArray<double>);
 var
   pExpr: PSEXPREC;
-  allocVec: TRfnAllocVector;
 begin
   // -- There's no base constructor that uses a TArray parameter, so build
   // -- everything we need here. R.NET calls the base constructor that uses
   // -- the vector length, but this seems to create an extra array. ??
 
   // -- First get the pointer to the R expression.
-  allocVec := GetProcAddress(engine.Handle, 'Rf_allocVector');
-  pExpr := allocVec(TSymbolicExpressionType.NumericVector, Length(vector));
+  pExpr := Engine.Rapi.AllocVector(TSymbolicExpressionType.NumericVector, Length(vector));
 
   Create(engine, pExpr);
 
@@ -145,13 +145,13 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
-procedure TNumericVector.SetVectorDirect(values: TArray<double>);
+procedure TNumericVector.SetVectorDirect(const values: TArray<double>);
 begin
   // -- Delphi, .NET and R all use contiguous memory blocks for 1D arrays.
   CopyMemory(DataPointer, PDouble(values), Length(values) * DataSize);
 end;
 //------------------------------------------------------------------------------
-procedure TNumericVector.CopyTo(destination: TArray<double>; copyCount,
+procedure TNumericVector.CopyTo(const destination: TArray<double>; copyCount,
   sourceIndex, destinationIndex: integer);
 var
   offset: integer;

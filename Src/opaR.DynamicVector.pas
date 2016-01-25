@@ -31,7 +31,6 @@ R.NET uses the object type in DynamicVector.
 interface
 
 uses
-  Winapi.Windows,
   System.Variants,
 
   opaR.SEXPREC,
@@ -54,15 +53,15 @@ type
     procedure WriteByte(value: Byte; Ptr: PSEXPREC; offset: integer);
     procedure WriteDouble(value: Extended; Ptr: PSEXPREC; offset: integer);
     procedure WriteInteger(value: integer; Ptr: PSEXPREC; offset: integer);
-    procedure WriteString(value: string; Ptr: PSEXPREC; ix: integer);
-    procedure WriteSymbolicExpression(expr: ISymbolicExpression; Ptr: PSEXPREC; ix: integer);
+    procedure WriteString(const value: string; Ptr: PSEXPREC; ix: integer);
+    procedure WriteSymbolicExpression(const expr: ISymbolicExpression; Ptr: PSEXPREC; ix: integer);
   protected
     function GetDataSize: integer; override;
     function GetValue(ix: integer): Variant; override;
     procedure SetValue(ix: integer; value: Variant); override;
   public
     function GetArrayFast: TArray<Variant>; override;
-    procedure SetVectorDirect(values: TArray<Variant>); override;
+    procedure SetVectorDirect(const values: TArray<Variant>); override;
   end;
 
 implementation
@@ -231,7 +230,7 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
-procedure TDynamicVector.SetVectorDirect(values: TArray<Variant>);
+procedure TDynamicVector.SetVectorDirect(const values: TArray<Variant>);
 var
   i: integer;
 begin
@@ -275,24 +274,20 @@ begin
   PData^ := value;
 end;
 //------------------------------------------------------------------------------
-procedure TDynamicVector.WriteString(value: string; Ptr: PSEXPREC;
+procedure TDynamicVector.WriteString(const value: string; Ptr: PSEXPREC;
   ix: integer);
 var
-  makeChar: TRFnMakeChar;
   PData: PSEXPREC;
 begin
   if value = '' then
     PData := TEngineExtension(Engine).NAStringPointer
   else
-  begin
-    makeChar := GetProcAddress(EngineHandle, 'Rf_mkChar');
-    PData := makeChar(PAnsiChar(AnsiString(value)));
-  end;
+    PData := Engine.Rapi.MakeChar(PAnsiChar(AnsiString(value)));
 
   PPointerArray(Ptr)^[ix] := PData;
 end;
 //------------------------------------------------------------------------------
-procedure TDynamicVector.WriteSymbolicExpression(expr: ISymbolicExpression;
+procedure TDynamicVector.WriteSymbolicExpression(const expr: ISymbolicExpression;
   Ptr: PSEXPREC; ix: integer);
 var
   PData: PSEXPREC;

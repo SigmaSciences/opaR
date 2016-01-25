@@ -30,8 +30,6 @@ destroyed by the R garbage collector.
 interface
 
 uses
-  Winapi.Windows,
-
   opaR.SEXPREC,
   opaR.Utils,
   opaR.DLLFunctions,
@@ -42,9 +40,10 @@ type
   private
     FEngineHandle: HMODULE;
     FHandle: PSEXPREC;
+    FEngine: IREngine;
   public
     constructor Create(sexp: ISymbolicExpression); overload;
-    constructor Create(engine: IREngine; p: PSEXPREC); overload;
+    constructor Create(const engine: IREngine; p: PSEXPREC); overload;
     destructor Destroy; override;
   end;
 
@@ -54,37 +53,30 @@ implementation
 { TProtectedPointer }
 
 //------------------------------------------------------------------------------
-constructor TProtectedPointer.Create(engine: IREngine; p: PSEXPREC);
-var
-  protect: TRFnProtect;
+constructor TProtectedPointer.Create(const engine: IREngine; p: PSEXPREC);
 begin
   FHandle := p;
   FEngineHandle := engine.Handle;
+  FEngine := engine;
 
   if FEngineHandle = 0 then
     raise EopaRException.Create('Null engine handle in ProtectedPointer constructor');
 
-  protect := GetProcAddress(FEngineHandle, 'Rf_protect');
-  protect(FHandle);
+  engine.Rapi.Protect(FHandle);
 end;
 //------------------------------------------------------------------------------
 constructor TProtectedPointer.Create(sexp: ISymbolicExpression);
-var
-  protect: TRFnProtect;
 begin
   FHandle := sexp.Handle;
   FEngineHandle := sexp.EngineHandle;
+  FEngine := sexp.Engine;
 
-  protect := GetProcAddress(FEngineHandle, 'Rf_protect');
-  protect(FHandle);
+  sexp.Engine.Rapi.Protect(FHandle);
 end;
 //------------------------------------------------------------------------------
 destructor TProtectedPointer.Destroy;
-var
-  unprotect: TRFnUnprotectPtr;
 begin
-  unprotect := GetProcAddress(FEngineHandle, 'Rf_unprotect_ptr');
-  unprotect(FHandle);
+  FEngine.Rapi.Unprotect(FHandle);
   inherited;
 end;
 

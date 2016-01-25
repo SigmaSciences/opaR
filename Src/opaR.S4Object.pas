@@ -22,8 +22,6 @@ THOSE OF NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 -------------------------------------------------------------------------------}
 
 uses
-  Winapi.Windows,
-
   Spring.Collections,
 
   opaR.SEXPREC,
@@ -44,7 +42,7 @@ type
     procedure CheckSlotName(name: string);
     procedure SetValueByName(name: string; value: ISymbolicExpression);
   public
-    constructor Create(engine: IREngine; pExpr: PSEXPREC);
+    constructor Create(const engine: IREngine; pExpr: PSEXPREC);
     function GetClassDefinition: IS4Object;
     function GetSlotTypes: IDictionary<string, string>;
     function HasSlot(slotName: string): boolean;
@@ -81,7 +79,7 @@ begin
     raise EopaRException.CreateFmt('Invalid slot name %s', [name]);
 end;
 //------------------------------------------------------------------------------
-constructor TS4Object.Create(engine: IREngine; pExpr: PSEXPREC);
+constructor TS4Object.Create(const engine: IREngine; pExpr: PSEXPREC);
 var
   expr: ISymbolicExpression;
 begin
@@ -99,13 +97,11 @@ var
   classSymbol: ISymbolicExpression;
   className: string;
   Ptr: PSEXPREC;
-  getClassDef: TRFnGetClassDef;
 begin
   classSymbol := TEngineExtension(Engine).GetPredefinedSymbol('R_ClassSymbol');
   className := self.GetAttribute(classSymbol).AsCharacter.First;
 
-  getClassDef := GetProcAddress(EngineHandle, 'R_getClassDef');
-  Ptr := getClassDef(PAnsiChar(AnsiString(className)));
+  Ptr := Engine.Rapi.GetClassDef(PAnsiChar(AnsiString(className)));
 
   result := TS4Object.Create(Engine, Ptr);
 end;
@@ -166,15 +162,13 @@ var
   PSlotValue: PSEXPREC;
   Ptr: PSEXPREC;
   pp: TProtectedPointer;
-  doSlot: TRFnDoSlot;
 begin
   CheckSlotName(name);
 
   pp := TProtectedPointer.Create(self);
   try
     Ptr := mkString(name);
-    doSlot := GetProcAddress(EngineHandle, 'R_do_slot');
-    PSlotValue := doSlot(Handle, Ptr);
+    PSlotValue := Engine.Rapi.DoSlot(Handle, Ptr);
     result := TSymbolicExpression.Create(Engine, PSlotValue);
   finally
     pp.Free;
@@ -183,32 +177,25 @@ end;
 //------------------------------------------------------------------------------
 function TS4Object.HasSlot(slotName: string): boolean;
 var
-  fnHasSlot: TRFnHasSlot;
   pp: TProtectedPointer;
   Ptr: PSEXPREC;
 begin
-  fnHasSlot := GetProcAddress(EngineHandle, 'R_has_slot');
-
   pp := TProtectedPointer.Create(self);
   try
     Ptr := mkString(slotName);
-    result := fnHasSlot(Handle, Ptr);
+    result := Engine.Rapi.HasSlot(Handle, Ptr);
   finally
     pp.Free;
   end;
 end;
 //------------------------------------------------------------------------------
 function TS4Object.mkString(s: string): PSEXPREC;
-var
-  makeString: TRFnMakeString;
 begin
-  makeString := GetProcAddress(EngineHandle, 'Rf_mkString');
-  result := makeString(PAnsiChar(AnsiString(s)));
+  result := Engine.Rapi.MakeString(PAnsiChar(AnsiString(s)));
 end;
 //------------------------------------------------------------------------------
 procedure TS4Object.SetValueByName(name: string; value: ISymbolicExpression);
 var
-  doSlotAssign: TRFnDoSlotAssign;
   pp: TProtectedPointer;
   Ptr: PSEXPREC;
 begin
@@ -217,8 +204,7 @@ begin
   pp := TProtectedPointer.Create(self);
   try
     Ptr := mkString(name);
-    doSlotAssign := GetProcAddress(EngineHandle, 'R_do_slot_assign');
-    doSlotAssign(Handle, Ptr, value.Handle);
+    Engine.Rapi.DoSlotAssign(Handle, Ptr, value.Handle);
   finally
     pp.Free;
   end;

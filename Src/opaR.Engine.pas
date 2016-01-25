@@ -32,15 +32,10 @@ an interface within this class, rather than in an associated class helper.
 interface
 
 uses
-  Winapi.Windows,
-  System.Types,
+  //Winapi.Windows,
   System.SysUtils,
   System.Classes,
-  System.StrUtils,
-  System.RegularExpressions,
-  Generics.Defaults,
 
-  //opaR.Engine_Intf,
   opaR.SEXPREC,
   opaR.Utils,
   opaR.DLLFunctions,
@@ -53,7 +48,6 @@ uses
   opaR.Environment,
   opaR.NativeUtility,
   opaR.Internals.Windows.RStart,
-  //opaR.ExpressionVector,
   opaR.Exception,
   opaR.Expression;
 
@@ -65,6 +59,7 @@ type
     class var FdllHandle: HMODULE;
     class var FDefaultDevice: ICharacterDevice;
     class var FDLLPath: string;
+    FRapi: TRapi;
     FIsRunning: boolean;
     FId: string;
     FStartupParameter: TStartupParameter;
@@ -86,11 +81,11 @@ type
     procedure SetAutoPrint(const Value: boolean);
     function GetAutoPrint: boolean;
     function GetIsRunning: boolean;
+    function GetRapi: TRapi;
   public
     constructor Create(id, dllName: string);
     destructor Destroy; override;
     function DllVersion: string;
-    //function GetFunction<TDelegate>: TDelegate;
     class function BuildRArgv(parameter: TStartupParameter): TPAnsiCharArray;
     class function EngineName: string;
     class function GetInstance(dllName: string = ''; initialize: boolean = true;
@@ -128,6 +123,7 @@ type
     property Handle: HMODULE read GetHandle;
     property IsRunning: boolean read GetIsRunning;
     property NilValue: PSEXPREC read GetNilValue;
+    property Rapi: TRapi read GetRapi;
   end;
 
 implementation
@@ -333,7 +329,7 @@ procedure TREngine.SetSymbolValue(symbolName: string; symbolValue: integer);
 var
   p: PInteger;
 begin
-  p := GetProcAddress(FdllHandle, PAnsiChar(AnsiString(symbolName)));
+  p := FRapi.GetRProcAddress(PAnsiChar(AnsiString(symbolName)));
   if p = nil then
     raise EopaRException.Create('Error: Could not retrieve a pointer for the symbol ' + symbolName);
 
@@ -341,22 +337,16 @@ begin
 end;
 //------------------------------------------------------------------------------
 destructor TREngine.Destroy;
-var
-  runExitFinalizers: TRfnRunExitFinalizers;
-  cleanEd: TRfnCleanEd;
-  cleanTempDir: TRfnCleanTempDir;
 begin
   FIsRunning := false;
 
   if not FDisposed then
   begin
     // -- Clean up the R environment.
-    runExitFinalizers := GetProcAddress(FdllHandle, 'R_RunExitFinalizers');
-    runExitFinalizers;
-    cleanEd := GetProcAddress(FdllHandle, 'Rf_CleanEd');
-    cleanEd;
-    cleanTempDir := GetProcAddress(FdllHandle, 'R_CleanTempDir');
-    cleanTempDir;
+    FRapi.RunExitFinalizers;
+    FRapi.CleanEd;
+    FRapi.CleanTempDir;
+
     FDisposed := true;
   end;
 
@@ -368,7 +358,8 @@ begin
 
   // -- FreeLibrary caused an intermittent AV in FMX in earlier versions.
   // -- Leave this comment in place for future reference.
-  FreeLibrary(FdllHandle);
+  FRapi.UnloadDLL;
+  //FreeLibrary(FdllHandle);
   FdllHandle := 0;
 
   inherited;
@@ -399,11 +390,8 @@ begin
 end;
 //------------------------------------------------------------------------------
 function TREngine.DllVersion: string;
-var
-  verFunction: TRFnDLLVersion;
 begin
-  verFunction := GetProcAddress(FdllHandle, 'getDLLVersion');
-  result := String(AnsiString(verFunction));
+  result := String(AnsiString(FRapi.DLLVersion));
 end;
 //------------------------------------------------------------------------------
 class function TREngine.EngineName: string;
@@ -428,11 +416,6 @@ begin
   result := expr.AsList;
 end;
 //------------------------------------------------------------------------------
-{function TREngine.GetFunction<TDelegate>: TDelegate;
-begin
-
-end;}
-//------------------------------------------------------------------------------
 function TREngine.GetHandle: HMODULE;
 begin
   result := FdllHandle;
@@ -455,8 +438,14 @@ function TREngine.GetPredefinedSymbolPtr(symbolName: string): PSEXPREC;
 var
   ptr: Pointer;
 begin
-  ptr := GetProcAddress(FdllHandle, PAnsiChar(AnsiString(symbolName)));
+  //ptr := GetProcAddress(FdllHandle, PAnsiChar(AnsiString(symbolName)));
+  ptr := FRapi.GetRProcAddress(PAnsiChar(AnsiString(symbolName)));
   result := PSEXPREC(PPointer(ptr)^);
+end;
+//------------------------------------------------------------------------------
+function TREngine.GetRapi: TRapi;
+begin
+  result := FRapi;
 end;
 //------------------------------------------------------------------------------
 function TREngine.GetSymbol(symbolName: string): ISymbolicExpression;
@@ -476,7 +465,7 @@ function TREngine.GetVisible: boolean;
 var
   p: PBoolean;
 begin
-  p := GetProcAddress(FdllHandle, 'R_Visible');
+  p := FRapi.GetRProcAddress('R_Visible');
   if p = nil then           // -- R_Visible not exported.
     result := true
   else
@@ -502,14 +491,9 @@ end;
 // -- initializing and before setup_Rmainloop.
 procedure TREngine.Initialize(parameter: TStartupParameter = nil; device: ICharacterDevice = nil; setupMainLoop: boolean = true);
 var
-  init: TRFnInitialize;
-  setStartTime: TRfnSetStartTime;
-  mainloop: TRfnSetupMainLoop;
   status: integer;
   R_argc: integer;
   R_argv: TPAnsiCharArray;
-  setParams: TRFnSetParams;
-  //defParams: TRFnDefParams;
   //replDLLinit: TRFnReplDLLinit;
   memLimit: NativeUInt;
 begin
@@ -527,6 +511,9 @@ begin
   else
     FDeviceAdapter := TCharacterDeviceAdapter.Create(device);
 
+  // -- TRapi gives access to the exported R DLL API.
+  FRapi := TRapi.Create(FdllHandle);
+
   SetCstackChecking;
   if (not setupMainLoop) then
   begin
@@ -534,14 +521,12 @@ begin
     exit;
   end;
 
-  setStartTime := GetProcAddress(FdllHandle, 'R_setStartTime');
-  setStartTime;
+  FRapi.SetStartTime;
 
   // -- Build the argument list for the initialization call.
   R_argv := BuildRArgv(FStartupParameter);
   R_argc := Length(R_argv);
-  init := GetProcAddress(FdllHandle, 'Rf_initialize_R');
-  status := init(R_argc, @R_argv[0]);
+  status := FRapi.InitializeR(R_argc, @R_argv[0]);
 
   if status = 0 then
   begin
@@ -562,14 +547,13 @@ begin
       //pfMacOS, pfLinux: defParams(FStartupParameter.Start.Common);
     end;}
 
-    setParams := GetProcAddress(FdllHandle, 'R_SetParams');
+    //setParams := GetProcAddress(FdllHandle, 'R_SetParams');
     case TOSVersion.Platform of
-      pfWindows: setParams(FStartupParameter.Start);
-      //pfMacOS, pfLinux: setParams(FStartupParameter.Start.Common);
+      pfWindows: FRapi.SetParams(FStartupParameter.Start);
+      //pfMacOS, pfLinux: FRapi.SetParams(FStartupParameter.Start.Common);
     end;
 
-    mainloop := GetProcAddress(FdllHandle, 'setup_Rmainloop');
-    mainloop;
+    FRapi.SetupMainLoop;
 
     SetCstackChecking;
     FIsRunning := true;

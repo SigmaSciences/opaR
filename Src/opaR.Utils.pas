@@ -108,7 +108,7 @@ type
   Tsxpinfo = packed record
   private
     Flags: DWord;
-    {$IFDEF WIN64}    // -- SizeOf(VECTOR_SEXPREC) in R.NET x64 = 40
+    {$IFDEF CPUX64}    // -- SizeOf(VECTOR_SEXPREC) in R.NET x64 = 40
     Pad: array[0..3] of byte;
     {$ENDIF}
     function GetBits(const aIndex: Integer): Integer;

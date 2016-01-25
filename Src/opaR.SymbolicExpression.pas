@@ -42,7 +42,7 @@ allows the use of dynamic typing, something we don't have in Delphi.
 interface
 
 uses
-  Winapi.Windows,
+  //Winapi.Windows,
   System.Types,
   System.Generics.Defaults,
 
@@ -67,10 +67,8 @@ type
     function GetEngine: IREngine;
     //function GetAttribute(attributeName: string): TSymbolicExpression; overload;
     //function GetAttribute(symbol: ISymbolicExpression): TSymbolicExpression; overload;
-  protected
-    function ConfirmType(typeName: string): boolean;
   public
-    constructor Create(engine: IREngine; pExpr: PSEXPREC);
+    constructor Create(const engine: IREngine; pExpr: PSEXPREC);
     destructor Destroy; override;
 
     function AsCharacter: ICharacterVector;
@@ -156,21 +154,14 @@ uses
 function TSymbolicExpression.AsCharacter: ICharacterVector;
 var
   p: PSEXPREC;
-  charFac: TRFnAsCharacterFactor;
-  coerceVec: TRFnCoerceVector;
 begin
   if not IsVector then Exit(nil);
 
   if IsFactor then
-  begin
-    charFac := GetProcAddress(EngineHandle, 'Rf_asCharacterFactor');
-    p := charFac(Handle);
-  end
+    p := Engine.Rapi.AsCharacterFactor(Handle)
   else
-  begin
-    coerceVec := GetProcAddress(EngineHandle, 'Rf_coerceVector');
-    p := coerceVec(Handle, TSymbolicExpressionType.CharacterVector);
-  end;
+    p := Engine.Rapi.CoerceVector(Handle, TSymbolicExpressionType.CharacterVector);
+
   result := TCharacterVector.Create(Engine, p);
 end;
 //------------------------------------------------------------------------------
@@ -178,13 +169,10 @@ function TSymbolicExpression.AsCharacterMatrix: ICharacterMatrix;
 var
   rowCount: integer;
   columnCount: integer;
-  fnNumRows: TRFnNumRows;
-  fnNumCols: TRFnNumCols;
-  fnLength: TRFnLength;
-  fnCoerceVector: TRFnCoerceVector;
   coercedPtr: PSEXPREC;
   vec: IIntegerVector;
   dimSymbol: ISymbolicExpression;
+  dimArray: TArray<integer>;
 begin
   if not IsVector then Exit(nil);
 
@@ -200,23 +188,21 @@ begin
     end
     else
     begin
-      fnNumRows := GetProcAddress(EngineHandle, 'Rf_nrows');
-      rowCount := fnNumRows(Handle);
-      fnNumCols := GetProcAddress(EngineHandle, 'Rf_ncols');
-      columnCount := fnNumCols(Handle);
+      rowCount := Engine.Rapi.NumRows(Handle);
+      columnCount := Engine.Rapi.NumCols(Handle);
     end;
   end;
 
   if columnCount = 0 then
   begin
-    fnLength := GetProcAddress(EngineHandle, 'Rf_length');
-    rowCount := fnLength(Handle);
+    rowCount := Engine.Rapi.Length(Handle);
     columnCount := 1;
   end;
 
-  fnCoerceVector := GetProcAddress(EngineHandle, 'Rf_coerceVector');
-  coercedPtr := fnCoerceVector(Handle, TSymbolicExpressionType.CharacterVector);
-  vec := TIntegerVector.Create(Engine, [rowCount, columnCount]);
+  coercedPtr := Engine.Rapi.CoerceVector(Handle, TSymbolicExpressionType.CharacterVector);
+
+  dimArray := TArray<integer>.Create(rowCount, columnCount);
+  vec := TIntegerVector.Create(Engine, dimArray);
   dimSymbol := TEngineExtension(Engine).GetPredefinedSymbol('R_DimSymbol');
 
   result := TCharacterMatrix.Create(Engine, coercedPtr);
@@ -265,12 +251,9 @@ end;
 function TSymbolicExpression.AsInteger: IIntegerVector;
 var
   p: PSEXPREC;
-  coerceVec: TRFnCoerceVector;
 begin
   if not IsVector then Exit(nil);
-
-  coerceVec := GetProcAddress(EngineHandle, 'Rf_coerceVector');
-  p := coerceVec(Handle, TSymbolicExpressionType.IntegerVector);
+  p := Engine.Rapi.CoerceVector(Handle, TSymbolicExpressionType.IntegerVector);
 
   result := TIntegerVector.Create(Engine, p);
 end;
@@ -279,13 +262,10 @@ function TSymbolicExpression.AsIntegerMatrix: IIntegerMatrix;
 var
   rowCount: integer;
   columnCount: integer;
-  fnNumRows: TRFnNumRows;
-  fnNumCols: TRFnNumCols;
-  fnLength: TRFnLength;
-  fnCoerceVector: TRFnCoerceVector;
   coercedPtr: PSEXPREC;
   vec: IIntegerVector;
   dimSymbol: ISymbolicExpression;
+  dimArray: TArray<integer>;
 begin
   if not self.IsVector then Exit(nil);
 
@@ -301,23 +281,21 @@ begin
     end
     else
     begin
-      fnNumRows := GetProcAddress(EngineHandle, 'Rf_nrows');
-      rowCount := fnNumRows(Handle);
-      fnNumCols := GetProcAddress(EngineHandle, 'Rf_ncols');
-      columnCount := fnNumCols(Handle);
+      rowCount := Engine.Rapi.NumRows(Handle);
+      columnCount := Engine.Rapi.NumCols(Handle);
     end;
   end;
 
   if columnCount = 0 then
   begin
-    fnLength := GetProcAddress(EngineHandle, 'Rf_length');
-    rowCount := fnLength(Handle);
+    rowCount := Engine.Rapi.Length(Handle);
     columnCount := 1;
   end;
 
-  fnCoerceVector := GetProcAddress(EngineHandle, 'Rf_coerceVector');
-  coercedPtr := fnCoerceVector(Handle, TSymbolicExpressionType.IntegerVector);
-  vec := TIntegerVector.Create(Engine, [rowCount, columnCount]);
+  coercedPtr := Engine.Rapi.CoerceVector(Handle, TSymbolicExpressionType.IntegerVector);
+
+  dimArray := TArray<integer>.Create(rowCount, columnCount);
+  vec := TIntegerVector.Create(Engine, dimArray);
   dimSymbol := TEngineExtension(Engine).GetPredefinedSymbol('R_DimSymbol');
 
   result := TIntegerMatrix.Create(Engine, coercedPtr);
@@ -353,12 +331,9 @@ end;
 function TSymbolicExpression.AsLogical: ILogicalVector;
 var
   p: PSEXPREC;
-  coerceVec: TRFnCoerceVector;
 begin
   if not IsVector then Exit(nil);
-
-  coerceVec := GetProcAddress(EngineHandle, 'Rf_coerceVector');
-  p := coerceVec(Handle, TSymbolicExpressionType.LogicalVector);
+  p := Engine.Rapi.CoerceVector(Handle, TSymbolicExpressionType.LogicalVector);
 
   result := TLogicalVector.Create(Engine, p);
 end;
@@ -367,13 +342,10 @@ function TSymbolicExpression.AsLogicalMatrix: ILogicalMatrix;
 var
   rowCount: integer;
   columnCount: integer;
-  fnNumRows: TRFnNumRows;
-  fnNumCols: TRFnNumCols;
-  fnLength: TRFnLength;
-  fnCoerceVector: TRFnCoerceVector;
   coercedPtr: PSEXPREC;
   vec: IIntegerVector;
   dimSymbol: ISymbolicExpression;
+  dimArray: TArray<integer>;
 begin
   if not self.IsVector then Exit(nil);
 
@@ -389,23 +361,21 @@ begin
     end
     else
     begin
-      fnNumRows := GetProcAddress(EngineHandle, 'Rf_nrows');
-      rowCount := fnNumRows(Handle);
-      fnNumCols := GetProcAddress(EngineHandle, 'Rf_ncols');
-      columnCount := fnNumCols(Handle);
+      rowCount := Engine.Rapi.NumRows(Handle);
+      columnCount := Engine.Rapi.NumCols(Handle);
     end;
   end;
 
   if columnCount = 0 then
   begin
-    fnLength := GetProcAddress(EngineHandle, 'Rf_length');
-    rowCount := fnLength(Handle);
+    rowCount := Engine.Rapi.Length(Handle);
     columnCount := 1;
   end;
 
-  fnCoerceVector := GetProcAddress(EngineHandle, 'Rf_coerceVector');
-  coercedPtr := fnCoerceVector(Handle, TSymbolicExpressionType.LogicalVector);
-  vec := TIntegerVector.Create(Engine, [rowCount, columnCount]);
+  coercedPtr := Engine.Rapi.CoerceVector(Handle, TSymbolicExpressionType.LogicalVector);
+
+  dimArray := TArray<integer>.Create(rowCount, columnCount);
+  vec := TIntegerVector.Create(Engine, dimArray);
   dimSymbol := TEngineExtension(Engine).GetPredefinedSymbol('R_DimSymbol');
 
   result := TLogicalMatrix.Create(Engine, coercedPtr);
@@ -415,12 +385,9 @@ end;
 function TSymbolicExpression.AsNumeric: INumericVector;
 var
   p: PSEXPREC;
-  coerceVec: TRFnCoerceVector;
 begin
   if not IsVector then Exit(nil);
-
-  coerceVec := GetProcAddress(EngineHandle, 'Rf_coerceVector');
-  p := coerceVec(Handle, TSymbolicExpressionType.NumericVector);
+  p := Engine.Rapi.CoerceVector(Handle, TSymbolicExpressionType.NumericVector);
 
   result := TNumericVector.Create(Engine, p);
 end;
@@ -429,13 +396,10 @@ function TSymbolicExpression.AsNumericMatrix: INumericMatrix;
 var
   rowCount: integer;
   columnCount: integer;
-  fnNumRows: TRFnNumRows;
-  fnNumCols: TRFnNumCols;
-  fnLength: TRFnLength;
-  fnCoerceVector: TRFnCoerceVector;
   coercedPtr: PSEXPREC;
   vec: IIntegerVector;
   dimSymbol: ISymbolicExpression;
+  dimArray: TArray<integer>;
 begin
   if not self.IsVector then Exit(nil);
 
@@ -451,23 +415,21 @@ begin
     end
     else
     begin
-      fnNumRows := GetProcAddress(EngineHandle, 'Rf_nrows');
-      rowCount := fnNumRows(Handle);
-      fnNumCols := GetProcAddress(EngineHandle, 'Rf_ncols');
-      columnCount := fnNumCols(Handle);
+      rowCount := Engine.Rapi.NumRows(Handle);
+      columnCount := Engine.Rapi.NumCols(Handle);
     end;
   end;
 
   if columnCount = 0 then
   begin
-    fnLength := GetProcAddress(EngineHandle, 'Rf_length');
-    rowCount := fnLength(Handle);
+    rowCount := Engine.Rapi.Length(Handle);
     columnCount := 1;
   end;
 
-  fnCoerceVector := GetProcAddress(EngineHandle, 'Rf_coerceVector');
-  coercedPtr := fnCoerceVector(Handle, TSymbolicExpressionType.NumericVector);
-  vec := TIntegerVector.Create(Engine, [rowCount, columnCount]);
+  coercedPtr := Engine.Rapi.CoerceVector(Handle, TSymbolicExpressionType.NumericVector);
+
+  dimArray := TArray<integer>.Create(rowCount, columnCount);
+  vec := TIntegerVector.Create(Engine, dimArray);
   dimSymbol := TEngineExtension(Engine).GetPredefinedSymbol('R_DimSymbol');
 
   result := TNumericMatrix.Create(Engine, coercedPtr);
@@ -477,12 +439,9 @@ end;
 function TSymbolicExpression.AsRaw: IRawVector;
 var
   p: PSEXPREC;
-  coerceVec: TRFnCoerceVector;
 begin
   if not IsVector then Exit(nil);
-
-  coerceVec := GetProcAddress(EngineHandle, 'Rf_coerceVector');
-  p := coerceVec(Handle, TSymbolicExpressionType.RawVector);
+  p := Engine.Rapi.CoerceVector(Handle, TSymbolicExpressionType.RawVector);
 
   result := TRawVector.Create(Engine, p);
 end;
@@ -504,28 +463,17 @@ end;
 function TSymbolicExpression.AsVector: IDynamicVector;
 var
   p: PSEXPREC;
-  coerceVec: TRFnCoerceVector;
 begin
   if not IsVector then Exit(nil);
-
-  coerceVec := GetProcAddress(EngineHandle, 'Rf_coerceVector');
-  p := coerceVec(Handle, self.Type_);
+  p := Engine.Rapi.CoerceVector(Handle, self.Type_);
 
   result := TDynamicVector.Create(Engine, p);
 end;
 //------------------------------------------------------------------------------
-function TSymbolicExpression.ConfirmType(typeName: string): boolean;
-var
-  typeConfirm: TRFnTypeConfirm;
-begin
-  typeConfirm := GetProcAddress(EngineHandle, PAnsiChar(AnsiString(typeName)));
-  result := typeConfirm(Handle);
-end;
-//------------------------------------------------------------------------------
-constructor TSymbolicExpression.Create(engine: IREngine; pExpr: PSEXPREC);
+constructor TSymbolicExpression.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
   FEngine := engine;
-  FEngineHandle := engine.Handle; //dllHandle;
+  FEngineHandle := engine.Handle;
   Fsexp := pExpr^;
   FHandle := pExpr;
   Preserve;   // -- Protect the structure from R's garbage collector.
@@ -543,25 +491,19 @@ begin
 end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.IsDataFrame: boolean;
-var
-  isFrame: TRFnIsFrame;
 begin
   if self.Handle = nil then
     raise EopaRException.Create('Null expression in TSymbolicExpression.IsDataFrame');
 
-  isFrame := GetProcAddress(EngineHandle, 'Rf_isFrame');
-  result := isFrame(Handle);
+  result := Engine.Rapi.IsFrame(Handle);
 end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.IsEnvironment: boolean;
-var
-  fnIsEnvironment: TRFnIsEnvironment;
 begin
   if self.Handle = nil then
     raise EopaRException.Create('Null expression in TSymbolicExpression.IsEnvironment');
 
-  fnIsEnvironment := GetProcAddress(EngineHandle, 'Rf_isEnvironment');
-  result := fnIsEnvironment(Handle);
+  result := Engine.Rapi.IsEnvironment(Handle);
 end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.IsEqualTo(other: ISymbolicExpression): boolean;
@@ -570,53 +512,40 @@ begin
 end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.IsExpression: boolean;
-var
-  fnIsExpression: TRFnIsExpression;
 begin
   if self.Handle = nil then
     raise EopaRException.Create('Null expression in TSymbolicExpression.IsExpression');
 
-  fnIsExpression := GetProcAddress(EngineHandle, 'Rf_isExpression');
-  result := fnIsExpression(Handle);
+  result := Engine.Rapi.IsExpression(Handle);
 end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.IsFactor: boolean;
-var
-  isFactor: TRFnIsFactor;
 begin
   if self.Handle = nil then
     raise EopaRException.Create('Null expression in TSymbolicExpression.IsFactor');
 
-  isFactor := GetProcAddress(EngineHandle, 'Rf_isFactor');
-  result := isFactor(Handle);
+  result := Engine.Rapi.IsFactor(Handle);
 end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.IsFunction: boolean;
-var
-  isFunction: TRFnIsFunction;
 begin
   if self.Handle = nil then
     raise EopaRException.Create('Null expression in TSymbolicExpression.IsFunction');
 
-  isFunction := GetProcAddress(EngineHandle, 'Rf_isFunction');
-  result := isFunction(Handle);
+  result := Engine.Rapi.IsFunction(Handle);
 end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.IsLanguage: boolean;
-var
-  isLanguage: TRFnIsLanguage;
 begin
   if self.Handle = nil then
     raise EopaRException.Create('Null expression in TSymbolicExpression.IsLanguage');
 
-  isLanguage := GetProcAddress(EngineHandle, 'Rf_isLanguage');
-  result := isLanguage(Handle);
+  result := Engine.Rapi.IsLanguage(Handle);
 end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.IsList: boolean;
 var
   len: integer;
-  fnLength: TRFnLength;
 begin
   if self.Handle = nil then
     raise EopaRException.Create('Null expression in TSymbolicExpression.IsList');
@@ -624,53 +553,40 @@ begin
   if self.Type_ = TSymbolicExpressionType.List then
     Exit(true);
 
-  fnLength := GetProcAddress(EngineHandle, 'Rf_length');
-  len := fnLength(Handle);
+  len := Engine.Rapi.Length(Handle);
   result := (self.Type_ = TSymbolicExpressionType.Pairlist) and (len > 0);
 end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.IsMatrix: boolean;
-var
-  fnIsMatrix: TRFnIsMatrix;
 begin
   if self.Handle = nil then
     raise EopaRException.Create('Null expression in TSymbolicExpression.IsMatrix');
 
-  fnIsMatrix := GetProcAddress(EngineHandle, 'Rf_isMatrix');
-  result := fnIsMatrix(Handle);
+  result := Engine.Rapi.IsMatrix(Handle);
 end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.IsS4: boolean;
-var
-  fnIsS4: TRFnIsS4;
 begin
   if self.Handle = nil then
     raise EopaRException.Create('Null expression in TSymbolicExpression.IsS4');
 
-  fnIsS4 := GetProcAddress(EngineHandle, 'Rf_isS4');
-  result := fnIsS4(Handle);
+  result := Engine.Rapi.IsS4(Handle);
 end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.IsSymbol: boolean;
-var
-  fnIsSymbol: TRFnIsSymbol;
 begin
   if self.Handle = nil then
     raise EopaRException.Create('Null expression in TSymbolicExpression.IsSymbol');
 
-  fnIsSymbol := GetProcAddress(EngineHandle, 'Rf_isSymbol');
-  result := fnIsSymbol(Handle);
+  result := Engine.Rapi.IsSymbol(Handle);
 end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.IsVector: boolean;
-var
-  fnIsVec: TRFnIsVector;
 begin
   if self.Handle = nil then
     raise EopaRException.Create('Null expression in TSymbolicExpression.IsVector');
 
-  fnIsVec := GetProcAddress(EngineHandle, 'Rf_isVector');
-  result := fnIsVec(Handle);
+  result := Engine.Rapi.IsVector(Handle);
 end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.GetAttribute(
@@ -678,17 +594,13 @@ function TSymbolicExpression.GetAttribute(
 var
   installedName: PSEXPREC;
   attribute: PSEXPREC;
-  install: TRFnInstall;
-  getAttrib: TRFnGetAttrib;
 begin
   if attributeName = '' then
     raise EopaRException.Create('Attribute name cannot be null');
 
-  install := GetProcAddress(FEngineHandle, 'Rf_install');
-  installedName := install(PAnsiChar(AnsiString(attributeName)));
+  installedName := Engine.Rapi.Install(PAnsiChar(AnsiString(attributeName)));
+  attribute := Engine.Rapi.GetAttrib(Handle, installedName);
 
-  getAttrib := GetProcAddress(FEngineHandle, 'Rf_getAttrib');
-  attribute := getAttrib(Handle, installedName);
   if attribute = nil then
     result := nil
   else
@@ -699,7 +611,6 @@ function TSymbolicExpression.GetAttribute(
   symbol: ISymbolicExpression): ISymbolicExpression;
 var
   attribute: PSEXPREC;
-  getAttrib: TRFnGetAttrib;
 begin
   if symbol = nil then
     raise EopaRException.Create('Error: Non-null symbol required');
@@ -707,8 +618,7 @@ begin
   if symbol.Type_ <> TSymbolicExpressionType.Symbol then
     raise EopaRException.Create('Error: Symbol-type required');
 
-  getAttrib := GetProcAddress(FEngineHandle, 'Rf_getAttrib');
-  attribute := getAttrib(Handle, symbol.Handle);
+  attribute := Engine.Rapi.GetAttrib(Handle, symbol.Handle);
   if attribute = TEngineExtension(Engine).NilValue then
     result := nil
   else
@@ -719,14 +629,12 @@ function TSymbolicExpression.GetAttributeNames: TArray<string>;
 var
   i: integer;
   length: integer;
-  vecLength: TRFnLength;
   node: TSEXPREC;
   attribute: TSEXPREC;
   Ptr: PSEXPREC;
   internalStr: TInternalString;
 begin
-  vecLength := GetProcAddress(FEngineHandle, 'Rf_length');
-  length := vecLength(Fsexp.attrib);
+  length := Engine.Rapi.Length(Fsexp.attrib);
   SetLength(result, length);
 
   Ptr := Fsexp.attrib;
@@ -781,14 +689,11 @@ begin
 end;
 //------------------------------------------------------------------------------
 procedure TSymbolicExpression.Preserve;
-var
-  preserveObj: TRFnPreserveObject;
 begin
   if (not IsInvalid) and (not FIsProtected) then
   begin
     { TODO : Possibly need a lock here - although the RDotNet problems might be GC-related. }
-    preserveObj := GetProcAddress(FEngineHandle, 'R_PreserveObject');
-    preserveObj(Handle);
+    Engine.Rapi.PreserveObject(Handle);
     FIsProtected := true;
   end;
 end;
@@ -802,8 +707,6 @@ begin
 end;
 //------------------------------------------------------------------------------
 procedure TSymbolicExpression.SetAttribute(symbol, value: ISymbolicExpression);
-var
-  setAttrib: TRFnSetAttrib;
 begin
   if symbol = nil then
     raise EopaRException.Create('Error: Non-null symbol required');
@@ -814,16 +717,13 @@ begin
   if value = nil then
     value := TEngineExtension(Engine).NilValueExpression;
 
-  setAttrib := GetProcAddress(FEngineHandle, 'Rf_setAttrib');
-  setAttrib(Handle, symbol.Handle, value.Handle);
+  Engine.Rapi.SetAttrib(Handle, symbol.Handle, value.Handle);
 end;
 //------------------------------------------------------------------------------
 procedure TSymbolicExpression.SetAttribute(attributeName: string;
   value: ISymbolicExpression);
 var
   installedName: PSEXPREC;
-  install: TRFnInstall;
-  setAttrib: TRFnSetAttrib;
 begin
   if attributeName = '' then
     raise EopaRException.Create('Error: Non-null attributeName required');
@@ -831,21 +731,16 @@ begin
   if value = nil then
     value := TEngineExtension(Engine).NilValueExpression;
 
-  install := GetProcAddress(FEngineHandle, 'Rf_install');
-  installedName := install(PAnsiChar(AnsiString(attributeName)));
-  setAttrib := GetProcAddress(FEngineHandle, 'Rf_setAttrib');
-  setAttrib(Handle, installedName, value.Handle);
+  installedName := Engine.Rapi.Install(PAnsiChar(AnsiString(attributeName)));
+  Engine.Rapi.SetAttrib(Handle, installedName, value.Handle);
 end;
 //------------------------------------------------------------------------------
 procedure TSymbolicExpression.Unpreserve;
-var
-  releaseObj: TRFnReleaseObject;
 begin
   if (not IsInvalid) and (FIsProtected) then
   begin
     { TODO : Possibly need a lock here - although the RDotNet problems might be GC-related? }
-    releaseObj := GetProcAddress(FEngineHandle, 'R_ReleaseObject');
-    releaseObj(Handle);
+    Engine.Rapi.ReleaseObject(Handle);
     FIsProtected := false;
   end;
 end;

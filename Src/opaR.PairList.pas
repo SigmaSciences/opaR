@@ -34,8 +34,6 @@ the node's "name".
 interface
 
 uses
-  Winapi.Windows,
-
   Generics.Tuples,    // from https://github.com/malcolmgroves/generics.tuples
 
   opaR.VectorUtils,
@@ -64,7 +62,7 @@ type
   private
     function GetCount: integer;
   public
-    constructor Create(engine: IREngine; pExpr: PSEXPREC);
+    constructor Create(const engine: IREngine; pExpr: PSEXPREC);
     function First: ISymbol;
     function GetEnumerator: IVectorEnumerator<ISymbol>;
     function ToArray: TArray<ISymbol>;
@@ -80,7 +78,7 @@ uses
 { TPairList }
 
 //------------------------------------------------------------------------------
-constructor TPairList.Create(engine: IREngine; pExpr: PSEXPREC);
+constructor TPairList.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
   // -- The pExpr is that returned from a call to Rf_VectorToPairList in the calling code.
   inherited Create(engine, pExpr);
@@ -95,11 +93,8 @@ end;
 ///	This returns the number of nodes.
 ///	</summary>
 function TPairList.GetCount: integer;
-var
-  rLength: TRFnLength;
 begin
-  rLength := GetProcAddress(EngineHandle, 'Rf_length');
-  result := rLength(Handle);
+  result := Engine.Rapi.Length(Handle);
 end;
 //------------------------------------------------------------------------------
 function TPairList.GetEnumerator: IVectorEnumerator<ISymbol>;

@@ -29,8 +29,6 @@ stored in the Handle property of the base class.
 interface
 
 uses
-  Winapi.Windows,
-
   opaR.Utils,
   opaR.DLLFunctions,
   opaR.SEXPREC,
@@ -42,7 +40,7 @@ uses
 type
   TExpression = class(TSymbolicExpression, IExpression)
   public
-    constructor Create(engine: IREngine; pExpr: PSEXPREC);
+    constructor Create(const engine: IREngine; pExpr: PSEXPREC);
     function Evaluate(const environment: IREnvironment): ISymbolicExpression;
     function TryEvaluate(const environment: IREnvironment; out rtn: ISymbolicExpression): boolean;
   end;
@@ -54,7 +52,7 @@ implementation
 { TExpression }
 
 //------------------------------------------------------------------------------
-constructor TExpression.Create(engine: IREngine; pExpr: PSEXPREC);
+constructor TExpression.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
   inherited Create(engine, pExpr);
 end;
@@ -62,7 +60,6 @@ end;
 { TODO : check engine match }
 function TExpression.Evaluate(const environment: IREnvironment): ISymbolicExpression;
 var
-  eval: TRFnEval;
   PPtr: PSEXPREC;
 begin
   if environment = nil then
@@ -71,8 +68,7 @@ begin
   //if environment.Engine <> Engine then
   //  raise EopaRException.Create('REngine mismatch in Expression.Evaluate');
 
-  eval := GetProcAddress(EngineHandle, 'Rf_eval');
-  PPtr := eval(Handle, environment.Handle);
+  PPtr := Engine.Rapi.Eval(Handle, environment.Handle);
   result := TSymbolicExpression.Create(Engine, PPtr);
 end;
 //------------------------------------------------------------------------------
@@ -81,7 +77,6 @@ function TExpression.TryEvaluate(const environment: IREnvironment;
   out rtn: ISymbolicExpression): boolean;
 var
   errorOccurred: LongBool;
-  tryEval: TRFnTryEval;
   PPtr: PSEXPREC;
 begin
   if environment = nil then
@@ -90,8 +85,7 @@ begin
   //if environment.Engine <> Engine then
   //  raise EopaRException.Create('REngine mismatch in Expression.TryEvaluate');
 
-  tryEval := GetProcAddress(EngineHandle, 'R_tryEval');
-  PPtr := tryEval(Handle, environment.Handle, errorOccurred);
+  PPtr := Engine.Rapi.TryEval(Handle, environment.Handle, errorOccurred);
 
   if errorOccurred then
     rtn := nil

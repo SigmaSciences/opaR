@@ -22,8 +22,6 @@ THOSE OF NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 interface
 
 uses
-  Winapi.Windows,
-
   opaR.SEXPREC,
   opaR.DLLFunctions,
   opaR.SymbolicExpression,
@@ -45,11 +43,10 @@ implementation
 function TRLanguage.FunctionCall: IPairList;
 var
   pairCount: integer;
-  rLength: TRFnLength;
   sexp: TSEXPREC;
 begin
-  rLength := GetProcAddress(EngineHandle, 'Rf_length');
-  pairCount := rLength(Handle);
+  pairCount := Engine.Rapi.Length(Handle);
+
   if pairCount < 2 then
     result := nil
   else

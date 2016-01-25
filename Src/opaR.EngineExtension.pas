@@ -38,7 +38,6 @@ various utility methods.
 interface
 
 uses
-  Winapi.Windows,
   System.SysUtils,
   System.Classes,
   System.StrUtils,
@@ -170,7 +169,8 @@ function TEngineExtension.GetAnsiString(symbolName: string): AnsiString;
 var
   ptr: pointer;
 begin
-  ptr := GetProcAddress(FEngine.Handle, PAnsiChar(AnsiString(symbolName)));
+  //ptr := GetProcAddress(FEngine.Handle, PAnsiChar(AnsiString(symbolName)));
+  ptr := FEngine.Rapi.GetRProcAddress(PAnsiChar(AnsiString(symbolName)));
   result := AnsiString(PAnsiChar(ptr));
 end;
 //------------------------------------------------------------------------------
@@ -178,9 +178,7 @@ function TEngineExtension.LastErrorMessage: string;
 var
   statement: string;
   status: TParseStatus;
-  makeString: TRFnMakeString;
   p1: PSEXPREC;
-  parseVec: TRFnParseVector;
   p2: PSEXPREC;
   vector: IExpressionVector;
   expr: ISymbolicExpression;
@@ -191,10 +189,10 @@ begin
   //if errMessage = nil then
   //begin
     statement := 'geterrmessage()' + #10;
-    makeString := GetProcAddress(FEngine.Handle, 'Rf_mkString');
-    p1 := makeString(PAnsiChar(AnsiString(statement)));
-    parseVec := GetProcAddress(FEngine.Handle, 'R_ParseVector');
-    p2 := parseVec(p1, -1, status, NilValue);    // -- Note -1 for max number of expressions to parse.
+
+    p1 := FEngine.Rapi.MakeString(PAnsiChar(AnsiString(statement)));
+    p2 := FEngine.Rapi.ParseVector(p1, -1, status, NilValue);  // -- Note -1 for max number of expressions to parse.
+
     vector := TExpressionVector.Create(FEngine, p2);
 
     if status <> TParseStatus.OK then
@@ -207,17 +205,14 @@ begin
     if errMessage.TryEvaluate(GlobalEnvironment, expr) then
     begin
       charVec := (expr as TSymbolicExpression).AsCharacter;
-      try
-        msgs := charVec.ToArray;
-        //msgs := expr.AsCharacter.ToArray;
-        if Length(msgs) > 1 then
-          raise EopaRException.Create('Unexpected multiple error messages returned');
-        if Length(msgs)  = 0 then
-          raise EopaRException.Create('No error messages returned (zero length)');
-        result := msgs[0];
-      finally
-        //charVec.Free;
-      end;
+
+      msgs := charVec.ToArray;
+      //msgs := expr.AsCharacter.ToArray;
+      if Length(msgs) > 1 then
+        raise EopaRException.Create('Unexpected multiple error messages returned');
+      if Length(msgs)  = 0 then
+        raise EopaRException.Create('No error messages returned (zero length)');
+      result := msgs[0];
     end
     else
       raise EopaRException.Create('Unable to retrieve an R error message. Evaluating "geterrmessage()" fails. The R engine is not in a working state.');
@@ -250,7 +245,7 @@ function TEngineExtension.GetPredefinedSymbolPtr(symbolName: string): PSEXPREC;
 var
   ptr: Pointer;
 begin
-  ptr := GetProcAddress(FEngine.Handle, PAnsiChar(AnsiString(symbolName)));
+  ptr := FEngine.Rapi.GetRProcAddress(PAnsiChar(AnsiString(symbolName)));
   result := PSEXPREC(PPointer(ptr)^);
 end;
 //------------------------------------------------------------------------------
@@ -333,28 +328,23 @@ function TEngineExtension.Parse(statement: string;
 var
   p1: PSEXPREC;
   p2: PSEXPREC;
-  makeString: TRFnMakeString;
-  parseVec: TRFnParseVector;
   pp: TProtectedPointer;
   pp2: TProtectedPointer;
   status: TParseStatus;
   errorStatement: string;
   vector: IExpressionVector;
   parseErrorMsg: AnsiString;
-  printValue: TRFnPrintValue;
 
   ge: IREnvironment;
   vec: IExpression;
 begin
   incompleteStatement.Append(statement);
 
-  makeString := GetProcAddress(FEngine.Handle, 'Rf_mkString');
-  p1 := makeString(PAnsiChar(AnsiString(incompleteStatement.ToString)));
+  p1 := FEngine.Rapi.MakeString(PAnsiChar(AnsiString(incompleteStatement.ToString)));
 
   pp := TProtectedPointer.Create(FEngine, p1);
   try
-    parseVec := GetProcAddress(FEngine.Handle, 'R_ParseVector');
-    p2 := parseVec(p1, -1, status, NilValue);    // -- Note -1 for max number of expressions to parse.
+    p2 := FEngine.Rapi.ParseVector(p1, -1, status, NilValue);    // -- Note -1 for max number of expressions to parse.
 
     case status of
       TParseStatus.OK: begin
@@ -374,10 +364,7 @@ begin
             raise EopaREvaluationException.Create(LastErrorMessage);
 
           if (FEngine.AutoPrint) and (not result.IsInvalid) and (FEngine.GetVisible) then
-          begin
-            printValue := GetProcAddress(FEngine.Handle, 'Rf_PrintValue');
-            printValue(result.Handle);
-          end;
+            FEngine.Rapi.PrintValue(result.Handle);
         finally
           pp2.Free;
         end;

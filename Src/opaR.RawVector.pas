@@ -22,7 +22,9 @@ THOSE OF NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 interface
 
 uses
+  {$IFDEF MSWINDOWS}
   Winapi.Windows,
+  {$ENDIF}
   System.Types,
 
   Spring.Collections,
@@ -41,13 +43,13 @@ type
     function GetValue(ix: integer): Byte; override;
     procedure SetValue(ix: integer; value: Byte); override;
   public
-    constructor Create(engine: IREngine; pExpr: PSEXPREC); overload;
-    constructor Create(engine: IREngine; vecLength: integer); overload;
-    constructor Create(engine: IREngine; vector: IEnumerable<Byte>); overload;
-    constructor Create(engine: IREngine; vector: TArray<Byte>); overload;
+    constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
+    constructor Create(const engine: IREngine; vecLength: integer); overload;
+    constructor Create(const engine: IREngine; const vector: IEnumerable<Byte>); overload;
+    constructor Create(const engine: IREngine; const vector: TArray<Byte>); overload;
     function GetArrayFast: TArray<Byte>; override;
-    procedure CopyTo(destination: TArray<Byte>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); //override;
-    procedure SetVectorDirect(values: TArray<Byte>); override;
+    procedure CopyTo(const destination: TArray<Byte>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); //override;
+    procedure SetVectorDirect(const values: TArray<Byte>); override;
   end;
 
 implementation
@@ -55,7 +57,7 @@ implementation
 { TRawVector }
 
 //------------------------------------------------------------------------------
-procedure TRawVector.CopyTo(destination: TArray<Byte>; copyCount,
+procedure TRawVector.CopyTo(const destination: TArray<Byte>; copyCount,
   sourceIndex, destinationIndex: integer);
 var
   offset: integer;
@@ -80,24 +82,22 @@ begin
   CopyMemory(PDestination, PData, copyCount * DataSize);
 end;
 //------------------------------------------------------------------------------
-constructor TRawVector.Create(engine: IREngine; pExpr: PSEXPREC);
+constructor TRawVector.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
-constructor TRawVector.Create(engine: IREngine; vecLength: integer);
+constructor TRawVector.Create(const engine: IREngine; vecLength: integer);
 begin
   inherited Create(engine, TSymbolicExpressionType.RawVector, vecLength);
 end;
 //------------------------------------------------------------------------------
-constructor TRawVector.Create(engine: IREngine; vector: TArray<Byte>);
+constructor TRawVector.Create(const engine: IREngine; const vector: TArray<Byte>);
 var
   pExpr: PSEXPREC;
-  allocVec: TRfnAllocVector;
 begin
   // -- First get the pointer to the R expression.
-  allocVec := GetProcAddress(engine.Handle, 'Rf_allocVector');
-  pExpr := allocVec(TSymbolicExpressionType.RawVector, Length(vector));
+  pExpr := Engine.Rapi.AllocVector(TSymbolicExpressionType.RawVector, Length(vector));
 
   Create(engine, pExpr);
 
@@ -105,8 +105,8 @@ begin
   CopyMemory(DataPointer, PByte(vector), Length(vector) * DataSize);
 end;
 //------------------------------------------------------------------------------
-constructor TRawVector.Create(engine: IREngine;
-  vector: IEnumerable<Byte>);
+constructor TRawVector.Create(const engine: IREngine;
+  const vector: IEnumerable<Byte>);
 begin
   inherited Create(engine, TSymbolicExpressionType.RawVector, vector);
 end;
@@ -160,7 +160,7 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
-procedure TRawVector.SetVectorDirect(values: TArray<Byte>);
+procedure TRawVector.SetVectorDirect(const values: TArray<Byte>);
 begin
   CopyMemory(DataPointer, PByte(values), Length(values) * DataSize);
 end;

@@ -33,8 +33,6 @@ Since there's no "null" for Delphi strings just implement ToString.
 interface
 
 uses
-  Winapi.Windows,
-
   opaR.VECTOR_SEXPREC,
   opaR.SEXPREC,
   opaR.SymbolicExpression,
@@ -45,8 +43,8 @@ uses
 type
   TInternalString = class(TSymbolicExpression, IInternalString)
   public
-    constructor Create(engine: IREngine; pExpr: PSEXPREC); overload;
-    constructor Create(engine: IREngine; s: string); overload;
+    constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
+    constructor Create(const engine: IREngine; s: string); overload;
     function ToString: string; override;
   end;
 
@@ -55,18 +53,16 @@ implementation
 { TInternalString }
 
 //------------------------------------------------------------------------------
-constructor TInternalString.Create(engine: IREngine; pExpr: PSEXPREC);
+constructor TInternalString.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
-constructor TInternalString.Create(engine: IREngine; s: string);
+constructor TInternalString.Create(const engine: IREngine; s: string);
 var
-  makeChar: TRFnMakeChar;
   pExpr: PSEXPREC;
 begin
-  makeChar := GetProcAddress(engine.Handle, 'Rf_mkChar');
-  pExpr := makeChar(PAnsiChar(AnsiString(s)));
+  pExpr := Engine.Rapi.MakeChar(PAnsiChar(AnsiString(s)));
 
   inherited Create(engine, pExpr);
 end;

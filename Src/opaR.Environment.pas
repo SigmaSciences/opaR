@@ -22,7 +22,6 @@ THOSE OF NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 interface
 
 uses
-  Winapi.Windows,
   System.SysUtils,
   System.Types,
 
@@ -41,8 +40,8 @@ type
     //function GetEngineHandle: HMODULE;
     //function GetHandle: PSEXPREC;
   public
-    constructor Create(engine: IREngine; pExpr: PSEXPREC); overload;
-    constructor Create(engine: IREngine; parent: IREnvironment); overload;
+    constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
+    constructor Create(const engine: IREngine; parent: IREnvironment); overload;
     //function GetInternalStructure: TSEXPREC;
     function GetSymbol(symbolName: string): ISymbolicExpression;
     function GetSymbolNames(includeSpecialFunctions: LongBool): TArray<string>;
@@ -62,20 +61,18 @@ uses
 { TREnvironment }
 
 //------------------------------------------------------------------------------
-constructor TREnvironment.Create(engine: IREngine; pExpr: PSEXPREC);
+constructor TREnvironment.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
-constructor TREnvironment.Create(engine: IREngine; parent: IREnvironment);
+constructor TREnvironment.Create(const engine: IREngine; parent: IREnvironment);
 var
-  newEnv: TRFnNewEnvironment;
   pExpr: PSEXPREC;
   nilPtr: PSEXPREC;
 begin
-  newEnv := GetProcAddress(engine.Handle, 'Rf_NewEnvironment');
   nilPtr := TEngineExtension(engine).NilValue;
-  pExpr := newEnv(nilPtr, nilPtr, parent.Handle);
+  pExpr := engine.Rapi.NewEnvironment(nilPtr, nilPtr, parent.Handle);
 
   inherited Create(engine, pExpr);
 end;
@@ -95,9 +92,6 @@ end;
 //------------------------------------------------------------------------------
 function TREnvironment.GetSymbol(symbolName: string): ISymbolicExpression;
 var
-  install: TRFnInstall;
-  findVar: TRFnFindVar;
-  eval: TRFnEval;
   installedName: PSEXPREC;
   pVar: PSEXPREC;
   sexp: TSEXPREC;
@@ -107,34 +101,27 @@ begin
   if symbolName = '' then
     raise EopaRException.Create('Symbol name cannot be null');
 
-  install := GetProcAddress(EngineHandle, 'Rf_install');
-  installedName := install(PAnsiChar(AnsiString(symbolName)));
-
-  findVar := GetProcAddress(EngineHandle, 'Rf_findVar');
-  pVar := findVar(installedName, Handle);
+  installedName := Engine.Rapi.Install(PAnsiChar(AnsiString(symbolName)));
+  pVar := Engine.Rapi.FindVar(installedName, Handle);
 
   if TEngineExtension(Engine).CheckUnbound(pVar) then
     raise EopaREvaluationException.CreateFmt('Error: Object %s not found', [QuotedStr(symbolName)]);
 
   sexp := pVar^;
   if TSymbolicExpressionType(sexp.sxpinfo.type_) = TSymbolicExpressionType.Promise then
-  begin
-    eval := GetProcAddress(EngineHandle, 'Rf_eval');
-    pVar := eval(pVar, Handle);
-  end;
+    pVar := Engine.Rapi.Eval(pVar, Handle);
+
   result := TSymbolicExpression.Create(Engine, pVar);
 end;
 //------------------------------------------------------------------------------
 function TREnvironment.GetSymbolNames(
   includeSpecialFunctions: LongBool): TArray<string>;
 var
-  fnlsInternal: TRFnlsInternal;
   Ptr: PSEXPREC;
   symbolNames: ICharacterVector;
   len: integer;
 begin
-  fnlsInternal := GetProcAddress(EngineHandle, 'R_lsInternal');
-  Ptr := fnlsInternal(Handle, includeSpecialFunctions);
+  Ptr := Engine.Rapi.lsInternal(Handle, includeSpecialFunctions);
 
   symbolNames := TCharacterVector.Create(Engine, Ptr);
   len := symbolNames.VectorLength;
@@ -145,9 +132,7 @@ end;
 procedure TREnvironment.SetSymbol(symbolName: string;
   expression: ISymbolicExpression);
 var
-  install: TRFnInstall;
   installedName: PSEXPREC;
-  defineVar: TRFnDefineVar;
 begin
   if symbolName = '' then
     raise EopaRException.Create('Symbol name cannot be null');
@@ -158,11 +143,8 @@ begin
   //if expression.Engine <> self.Engine then            { TODO : Engine mismatch }
   //  raise EopaRException.Create('Engine mismatch');
 
-  install := GetProcAddress(EngineHandle, 'Rf_install');
-  installedName := install(PAnsiChar(AnsiString(symbolName)));
-
-  defineVar := GetProcAddress(EngineHandle, 'Rf_defineVar');
-  defineVar(installedName, expression.Handle, Handle);
+  installedName := Engine.Rapi.Install(PAnsiChar(AnsiString(symbolName)));
+  Engine.Rapi.DefineVar(installedName, expression.Handle, Handle);
 end;
 
 end.

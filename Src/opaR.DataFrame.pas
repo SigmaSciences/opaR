@@ -61,7 +61,7 @@ type
     function GetArrayFast: TArray<IDynamicVector>; reintroduce;
     function GetRow(rowIndex: integer): IDataFrameRow;
     function GetRows: IList<IDataFrameRow>;
-    procedure SetVectorDirect(values: TArray<IDynamicVector>); override;
+    procedure SetVectorDirect(const values: TArray<IDynamicVector>); override;
     property ColumnCount: integer read GetColumnCount;
     property ColumnNames: TArray<string> read GetColumnNames;
     property RowCount: integer read GetRowCount;
@@ -273,7 +273,7 @@ begin
   PPointerArray(DataPointer)^[columnIndex] := PData;
 end;
 //------------------------------------------------------------------------------
-procedure TDataFrame.SetVectorDirect(values: TArray<IDynamicVector>);
+procedure TDataFrame.SetVectorDirect(const values: TArray<IDynamicVector>);
 var
   i: integer;
 begin

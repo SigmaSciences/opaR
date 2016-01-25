@@ -22,7 +22,9 @@ THOSE OF NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 interface
 
 uses
+  {$IFDEF MSWINDOWS}
   Winapi.Windows,
+  {$ENDIF}
 
   Spring.Collections,
 
@@ -40,12 +42,12 @@ type
     function GetValue(ix: integer): LongBool; override;
     procedure SetValue(ix: integer; value: LongBool); override;
   public
-    constructor Create(engine: IREngine; pExpr: PSEXPREC); overload;
-    constructor Create(engine: IREngine; vecLength: integer); overload;
-    constructor Create(engine: IREngine; vector: IEnumerable<LongBool>); overload;
-    constructor Create(engine: IREngine; vector: TArray<LongBool>); overload;
+    constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
+    constructor Create(const engine: IREngine; vecLength: integer); overload;
+    constructor Create(const engine: IREngine; const vector: IEnumerable<LongBool>); overload;
+    constructor Create(const engine: IREngine; const vector: TArray<LongBool>); overload;
     function GetArrayFast: TArray<LongBool>; override;
-    procedure SetVectorDirect(values: TArray<LongBool>); override;
+    procedure SetVectorDirect(const values: TArray<LongBool>); override;
   end;
 
 
@@ -57,25 +59,23 @@ uses
 { TLogicalVector }
 
 //------------------------------------------------------------------------------
-constructor TLogicalVector.Create(engine: IREngine; vecLength: integer);
+constructor TLogicalVector.Create(const engine: IREngine; vecLength: integer);
 begin
   // -- The base constructor calls Rf_allocVector
   inherited Create(engine, TSymbolicExpressionType.LogicalVector, vecLength);
 end;
 //------------------------------------------------------------------------------
-constructor TLogicalVector.Create(engine: IREngine; vector: IEnumerable<LongBool>);
+constructor TLogicalVector.Create(const engine: IREngine; const vector: IEnumerable<LongBool>);
 begin
   inherited Create(engine, TSymbolicExpressionType.LogicalVector, vector);
 end;
 //------------------------------------------------------------------------------
-constructor TLogicalVector.Create(engine: IREngine; vector: TArray<LongBool>);
+constructor TLogicalVector.Create(const engine: IREngine; const vector: TArray<LongBool>);
 var
   pExpr: PSEXPREC;
-  allocVec: TRfnAllocVector;
 begin
   // -- First get the pointer to the R expression.
-  allocVec := GetProcAddress(engine.Handle, 'Rf_allocVector');
-  pExpr := allocVec(TSymbolicExpressionType.NumericVector, Length(vector));
+  pExpr := Engine.Rapi.AllocVector(TSymbolicExpressionType.LogicalVector, Length(vector));
 
   Create(engine, pExpr);
 
@@ -83,7 +83,7 @@ begin
   CopyMemory(DataPointer, PLongBool(vector), Length(vector) * DataSize);
 end;
 //------------------------------------------------------------------------------
-constructor TLogicalVector.Create(engine: IREngine; pExpr: PSEXPREC);
+constructor TLogicalVector.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
   inherited Create(engine, pExpr);
 end;
@@ -137,7 +137,7 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
-procedure TLogicalVector.SetVectorDirect(values: TArray<LongBool>);
+procedure TLogicalVector.SetVectorDirect(const values: TArray<LongBool>);
 begin
   // -- Delphi, .NET and R all use contiguous memory blocks for 1D arrays.
   CopyMemory(DataPointer, PLongBool(values), Length(values) * DataSize);

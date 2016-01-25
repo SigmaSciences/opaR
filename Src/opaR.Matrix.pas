@@ -22,8 +22,6 @@ THOSE OF NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 interface
 
 uses
-  Winapi.Windows,
-
   opaR.SEXPREC,
   opaR.VECTOR_SEXPREC,
   opaR.Utils,
@@ -51,10 +49,10 @@ type
     procedure InitMatrixFastDirect(matrix: TDynMatrix<T>); virtual; abstract;
     procedure SetValue(rowIndex, columnIndex: integer; value: T); virtual; abstract;
   public
-    constructor Create(engine: IREngine; pExpr: PSEXPREC); overload;
-    constructor Create(engine: IREngine;
+    constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
+    constructor Create(const engine: IREngine;
       expressionType: TSymbolicExpressionType; rowCount, columnCount: integer); overload;
-    constructor Create(engine: IREngine;
+    constructor Create(const engine: IREngine;
       expressionType: TSymbolicExpressionType; matrix: TDynMatrix<T>); overload;
     function ColumnNames: TArray<string>;
     function GetArrayFast: TDynMatrix<T>; virtual; abstract;
@@ -81,16 +79,15 @@ uses
 { TRMatrix<T> }
 
 //------------------------------------------------------------------------------
-constructor TRMatrix<T>.Create(engine: IREngine; pExpr: PSEXPREC);
+constructor TRMatrix<T>.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
-constructor TRMatrix<T>.Create(engine: IREngine;
+constructor TRMatrix<T>.Create(const engine: IREngine;
   expressionType: TSymbolicExpressionType; rowCount, columnCount: integer);
 var
   pExpr: PSEXPREC;
-  allocVec: TRfnAllocMatrix;
 begin
   if rowCount <= 0 then
     raise EopaRException.Create('Error: Matrix rowCount must be greater than zero');
@@ -99,8 +96,7 @@ begin
     raise EopaRException.Create('Error: Matrix columnCount must be greater than zero');
 
   // -- First get the pointer to the R expression.
-  allocVec := GetProcAddress(engine.Handle, 'Rf_allocMatrix');
-  pExpr := allocVec(expressionType, rowCount, columnCount);
+  pExpr := Engine.Rapi.AllocMatrix(expressionType, rowCount, columnCount);
 
   inherited Create(engine, pExpr);
 end;
@@ -172,7 +168,7 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
-constructor TRMatrix<T>.Create(engine: IREngine;
+constructor TRMatrix<T>.Create(const engine: IREngine;
   expressionType: TSymbolicExpressionType; matrix: TDynMatrix<T>);
 var
   rowCount: integer;
@@ -188,11 +184,8 @@ begin
 end;
 //------------------------------------------------------------------------------
 function TRMatrix<T>.GetColumnCount: integer;
-var
-  numCols: TRFnNumCols;
 begin
-  numCols := GetProcAddress(EngineHandle, 'Rf_ncols');
-  result := numCols(Handle);
+  result := Engine.Rapi.NumCols(Handle);
 end;
 //------------------------------------------------------------------------------
 function TRMatrix<T>.GetDataPointer: PSEXPREC;
@@ -260,11 +253,8 @@ begin
 end;
 //------------------------------------------------------------------------------
 function TRMatrix<T>.GetRowCount: integer;
-var
-  numRows: TRFnNumRows;
 begin
-  numRows := GetProcAddress(EngineHandle, 'Rf_nrows');
-  result := numRows(Handle);
+  result := Engine.Rapi.NumRows(Handle);
 end;
 //------------------------------------------------------------------------------
 function TRMatrix<T>.GetValueByName(rowName, columnName: string): T;

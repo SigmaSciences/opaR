@@ -22,8 +22,6 @@ THOSE OF NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 interface
 
 uses
-  Winapi.Windows,
-
   opaR.SEXPREC,
   opaR.VECTOR_SEXPREC,
   opaR.Utils,
@@ -42,8 +40,8 @@ type
     procedure InitMatrixFastDirect(matrix: TDynMatrix<string>); override;
     procedure SetValue(rowIndex, columnIndex: integer; value: string); override;
   public
-    constructor Create(engine: IREngine; numRows, numCols: integer); overload;
-    constructor Create(engine: IREngine; matrix: TDynMatrix<string>); overload;
+    constructor Create(const engine: IREngine; numRows, numCols: integer); overload;
+    constructor Create(const engine: IREngine; matrix: TDynMatrix<string>); overload;
     function GetArrayFast: TDynMatrix<string>; override;
   end;
 
@@ -55,13 +53,13 @@ uses
 { TCharacterMatrix }
 
 //------------------------------------------------------------------------------
-constructor TCharacterMatrix.Create(engine: IREngine; numRows,
+constructor TCharacterMatrix.Create(const engine: IREngine; numRows,
   numCols: integer);
 begin
   inherited Create(engine, TSymbolicExpressionType.CharacterVector, numRows, numCols);
 end;
 //------------------------------------------------------------------------------
-constructor TCharacterMatrix.Create(engine: IREngine;
+constructor TCharacterMatrix.Create(const engine: IREngine;
   matrix: TDynMatrix<string>);
 begin
   inherited Create(engine, TSymbolicExpressionType.CharacterVector, matrix);
@@ -141,13 +139,10 @@ begin
 end;
 //------------------------------------------------------------------------------
 function TCharacterMatrix.mkChar(s: string): PSEXPREC;
-var
-  makeChar: TRFnMakeChar;
 begin
   // -- The call to Rf_mkChar gets us a CHARSXP, either from R's global cache
   // -- or by creating a new one.
-  makeChar := GetProcAddress(EngineHandle, 'Rf_mkChar');
-  result := makeChar(PAnsiChar(AnsiString(s)));
+  result := Engine.Rapi.MakeChar(PAnsiChar(AnsiString(s)));
 end;
 //------------------------------------------------------------------------------
 procedure TCharacterMatrix.SetValue(rowIndex, columnIndex: integer;

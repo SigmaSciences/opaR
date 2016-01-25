@@ -28,7 +28,6 @@ TGenericVector wraps the R list type. Note that this is not the same as a PairLi
 interface
 
 uses
-  Winapi.Windows,
   Spring.Collections,
 
   opaR.SEXPREC,
@@ -49,15 +48,15 @@ type
     function GetValue(ix: integer): ISymbolicExpression; override;
     procedure SetValue(ix: integer; value: ISymbolicExpression); override;
   public
-    constructor Create(engine: IREngine; pExpr: PSEXPREC); overload;
-    constructor Create(engine: IREngine; vecLength: integer); overload;
-    constructor Create(engine: IREngine; vector: IEnumerable<TSymbolicExpression>); overload;
-    constructor Create(engine: IREngine; vector: TArray<ISymbolicExpression>); overload;
+    constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
+    constructor Create(const engine: IREngine; vecLength: integer); overload;
+    constructor Create(const engine: IREngine; const vector: IEnumerable<TSymbolicExpression>); overload;
+    constructor Create(const engine: IREngine; const vector: TArray<ISymbolicExpression>); overload;
     function GetArrayFast: TArray<ISymbolicExpression>; override;
     function ToPairlist: IPairlist;
-    procedure SetNames(names: TArray<string>); overload;
-    procedure SetNames(names: ICharacterVector); overload;
-    procedure SetVectorDirect(values: TArray<ISymbolicExpression>); override;
+    procedure SetNames(const names: TArray<string>); overload;
+    procedure SetNames(const names: ICharacterVector); overload;
+    procedure SetVectorDirect(const values: TArray<ISymbolicExpression>); override;
   end;
 
 implementation
@@ -68,29 +67,27 @@ uses
 { TGenericVector }
 
 //------------------------------------------------------------------------------
-constructor TGenericVector.Create(engine: IREngine; vecLength: integer);
+constructor TGenericVector.Create(const engine: IREngine; vecLength: integer);
 begin
   inherited Create(engine, TSymbolicExpressionType.ExpressionVector, vecLength);
 end;
 //------------------------------------------------------------------------------
-constructor TGenericVector.Create(engine: IREngine; pExpr: PSEXPREC);
+constructor TGenericVector.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
-constructor TGenericVector.Create(engine: IREngine;
-  vector: IEnumerable<TSymbolicExpression>);
+constructor TGenericVector.Create(const engine: IREngine;
+  const vector: IEnumerable<TSymbolicExpression>);
 var
   ix: integer;
   val: TSymbolicExpression;
   len: integer;
   pExpr: PSEXPREC;
-  allocVec: TRfnAllocVector;
 begin
   // -- First get the pointer to the R expression.
   len := vector.Count;
-  allocVec := GetProcAddress(engine.Handle, 'Rf_allocVector');
-  pExpr := allocVec(TSymbolicExpressionType.ExpressionVector, len);
+  pExpr := Engine.Rapi.AllocVector(TSymbolicExpressionType.ExpressionVector, len);
 
   // -- Call the base TSymbolicExpression constructor.
   Create(engine, pExpr);
@@ -103,18 +100,16 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
-constructor TGenericVector.Create(engine: IREngine;
-  vector: TArray<ISymbolicExpression>);
+constructor TGenericVector.Create(const engine: IREngine;
+  const vector: TArray<ISymbolicExpression>);
 var
   ix: integer;
   len: integer;
   pExpr: PSEXPREC;
-  allocVec: TRfnAllocVector;
 begin
   // -- First get the pointer to the R expression.
   len := Length(vector);
-  allocVec := GetProcAddress(engine.Handle, 'Rf_allocVector');
-  pExpr := allocVec(TSymbolicExpressionType.ExpressionVector, len);
+  pExpr := Engine.Rapi.AllocVector(TSymbolicExpressionType.ExpressionVector, len);
 
   // -- Call the base TSymbolicExpression constructor.
   Create(engine, pExpr);
@@ -159,7 +154,7 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
-procedure TGenericVector.SetNames(names: TArray<string>);
+procedure TGenericVector.SetNames(const names: TArray<string>);
 var
   cv: ICharacterVector;
 begin
@@ -167,7 +162,7 @@ begin
   SetNames(cv);
 end;
 //------------------------------------------------------------------------------
-procedure TGenericVector.SetNames(names: ICharacterVector);
+procedure TGenericVector.SetNames(const names: ICharacterVector);
 var
   namesSymbol: ISymbolicExpression;
   p: PSEXPREC;
@@ -204,7 +199,7 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
-procedure TGenericVector.SetVectorDirect(values: TArray<ISymbolicExpression>);
+procedure TGenericVector.SetVectorDirect(const values: TArray<ISymbolicExpression>);
 var
   i: integer;
 begin
@@ -215,10 +210,8 @@ end;
 function TGenericVector.ToPairlist: IPairlist;
 var
   p: PSEXPREC;
-  vectorToPairList: TRFnVectorToPairList;
 begin
-  vectorToPairList := GetProcAddress(EngineHandle, 'Rf_VectorToPairList');
-  p := vectorToPairList(Handle);
+  p := Engine.Rapi.VectorToPairList(Handle);
   result := TPairList.Create(Engine, p);
 end;
 

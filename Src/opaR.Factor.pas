@@ -36,7 +36,6 @@ problem in practice (with respect to using R).
 interface
 
 uses
-  Winapi.Windows,
   System.Rtti,
   System.TypInfo,
 
@@ -133,11 +132,8 @@ begin
 end;
 //------------------------------------------------------------------------------
 function TFactor.GetIsOrdered: boolean;
-var
-  fnIsOrdered: TRFnIsOrdered;
 begin
-  fnIsOrdered := GetProcAddress(EngineHandle, 'Rf_isOrdered');
-  result := fnIsOrdered(Handle);
+  result := Engine.Rapi.IsOrdered(Handle);
 end;
 //------------------------------------------------------------------------------
 function TFactor.GetLevels: TArray<string>;

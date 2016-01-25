@@ -22,8 +22,6 @@ THOSE OF NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 interface
 
 uses
-  Winapi.Windows,
-
   opaR.Utils,
   opaR.Matrix,
   opaR.ProtectedPointer,
@@ -37,8 +35,8 @@ type
     procedure InitMatrixFastDirect(matrix: TDynMatrix<double>); override;
     procedure SetValue(rowIndex, columnIndex: integer; value: double); override;
   public
-    constructor Create(engine: IREngine; numRows, numCols: integer); overload;
-    constructor Create(engine: IREngine; matrix: TDynMatrix<double>); overload;
+    constructor Create(const engine: IREngine; numRows, numCols: integer); overload;
+    constructor Create(const engine: IREngine; matrix: TDynMatrix<double>); overload;
     function GetArrayFast: TDynMatrix<double>; override;
   end;
 
@@ -47,13 +45,13 @@ implementation
 { TNumericMatrix }
 
 //------------------------------------------------------------------------------
-constructor TNumericMatrix.Create(engine: IREngine; numRows,
+constructor TNumericMatrix.Create(const engine: IREngine; numRows,
   numCols: integer);
 begin
   inherited Create(engine, TSymbolicExpressionType.NumericVector, numRows, numCols);
 end;
 //------------------------------------------------------------------------------
-constructor TNumericMatrix.Create(engine: IREngine;
+constructor TNumericMatrix.Create(const engine: IREngine;
   matrix: TDynMatrix<double>);
 begin
   inherited Create(engine, TSymbolicExpressionType.NumericVector, matrix);

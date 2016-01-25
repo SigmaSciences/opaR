@@ -30,7 +30,6 @@ in turn obviously means poorer performance compared with, e.g., numeric vectors.
 interface
 
 uses
-  Winapi.Windows,
   Spring.Collections,
 
   opaR.SEXPREC,
@@ -44,20 +43,20 @@ uses
 type
   TCharacterVector = class(TRVector<string>, ICharacterVector)
   private
-    function mkChar(s: string): PSEXPREC;
+    function mkChar(const s: string): PSEXPREC;
   protected
     function GetDataSize: integer; override;
     function GetValue(ix: integer): string; override;
     procedure SetValue(ix: integer; value: string); override;
   public
-    constructor Create(engine: IREngine; pExpr: PSEXPREC); overload;
-    constructor Create(engine: IREngine; vecLength: integer); overload;
-    constructor Create(engine: IREngine; vector: IEnumerable<string>); overload;
-    constructor Create(engine: IREngine; vector: TArray<string>); overload;
+    constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
+    constructor Create(const engine: IREngine; vecLength: integer); overload;
+    constructor Create(const engine: IREngine; const vector: IEnumerable<string>); overload;
+    constructor Create(const engine: IREngine; const vector: TArray<string>); overload;
     function GetArrayFast: TArray<string>; override;
     function ToArray: TArray<string>;
-    procedure CopyTo(destination: TArray<string>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); //override;
-    procedure SetVectorDirect(values: TArray<string>); override;
+    procedure CopyTo(const destination: TArray<string>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); //override;
+    procedure SetVectorDirect(const values: TArray<string>); override;
   end;
 
 implementation
@@ -68,28 +67,26 @@ uses
 { TCharacterVector }
 
 //------------------------------------------------------------------------------
-constructor TCharacterVector.Create(engine: IREngine; pExpr: PSEXPREC);
+constructor TCharacterVector.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
-constructor TCharacterVector.Create(engine: IREngine; vecLength: integer);
+constructor TCharacterVector.Create(const engine: IREngine; vecLength: integer);
 begin
   inherited Create(engine, TSymbolicExpressionType.CharacterVector, vecLength);
 end;
 //------------------------------------------------------------------------------
-constructor TCharacterVector.Create(engine: IREngine; vector: IEnumerable<string>);
+constructor TCharacterVector.Create(const engine: IREngine; const vector: IEnumerable<string>);
 var
   ix: integer;
   val: string;
   len: integer;
   pExpr: PSEXPREC;
-  allocVec: TRfnAllocVector;
 begin
   // -- First get the pointer to the R expression.
   len := vector.Count;
-  allocVec := GetProcAddress(engine.Handle, 'Rf_allocVector');
-  pExpr := allocVec(TSymbolicExpressionType.CharacterVector, len);
+  pExpr := Engine.Rapi.AllocVector(TSymbolicExpressionType.CharacterVector, len);
 
   // -- Call the base TSymbolicExpression constructor.
   Create(engine, pExpr);
@@ -102,7 +99,7 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
-procedure TCharacterVector.CopyTo(destination: TArray<string>; copyCount,
+procedure TCharacterVector.CopyTo(const destination: TArray<string>; copyCount,
   sourceIndex, destinationIndex: integer);
 var
   i: integer;
@@ -122,7 +119,7 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
-constructor TCharacterVector.Create(engine: IREngine; vector: TArray<string>);
+constructor TCharacterVector.Create(const engine: IREngine; const vector: TArray<string>);
 var
   i: integer;
   len: integer;
@@ -131,8 +128,7 @@ var
 begin
   // -- First get the pointer to the R expression.
   len := Length(vector);
-  allocVec := GetProcAddress(engine.Handle, 'Rf_allocVector');
-  pExpr := allocVec(TSymbolicExpressionType.CharacterVector, len);
+  pExpr := Engine.Rapi.AllocVector(TSymbolicExpressionType.CharacterVector, len);
 
   // -- Call the base TSymbolicExpression constructor.
   Create(engine, pExpr);
@@ -156,14 +152,11 @@ begin
   result := SizeOf(PSEXPREC);
 end;
 //------------------------------------------------------------------------------
-function TCharacterVector.mkChar(s: string): PSEXPREC;
-var
-  makeChar: TRFnMakeChar;
+function TCharacterVector.mkChar(const s: string): PSEXPREC;
 begin
   // -- The call to Rf_mkChar gets us a CHARSXP, either from R's global cache
   // -- or by creating a new one.
-  makeChar := GetProcAddress(EngineHandle, 'Rf_mkChar');
-  result := makeChar(PAnsiChar(AnsiString(s)));
+  result := Engine.Rapi.MakeChar(PAnsiChar(AnsiString(s)));
 end;
 //------------------------------------------------------------------------------
 function TCharacterVector.GetValue(ix: integer): string;
@@ -220,7 +213,7 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
-procedure TCharacterVector.SetVectorDirect(values: TArray<string>);
+procedure TCharacterVector.SetVectorDirect(const values: TArray<string>);
 var
   i: integer;
 begin
