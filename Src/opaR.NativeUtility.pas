@@ -111,11 +111,12 @@ begin
       if version.IsLessThan(testInfo.Create(2, 12, 0)) then
         result := path
       else
-        if TOSVersion.Architecture = arIntelx64 then
-          result := TPath.Combine(path, 'x64')
-        else
-          result := TPath.Combine(path, 'i386');
-        end;
+        {$IFDEF CPUX64}
+        result := TPath.Combine(path, 'x64');
+        {$ELSE}
+        result := TPath.Combine(path, 'i386');
+        {$ENDIF}
+    end;
   end;
 end;
 //------------------------------------------------------------------------------
@@ -320,10 +321,11 @@ begin
     end;
     Reg.CloseKey;
 
-    if TOSVersion.Architecture = arIntelx86 then
-      subKey := 'R'
-    else
+    {$IFNDEF CPUX64}
+      subKey := 'R';
+    {$ELSE}
       subKey := 'R64';
+    {$ENDIF}
 
     if Reg.OpenKeyReadOnly('SOFTWARE\R-core\' + subKey) then
     begin
