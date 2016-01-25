@@ -22,7 +22,9 @@ THOSE OF NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 interface
 
 uses
+  {$IFDEF MSWINDOWS}
   Winapi.Windows,
+  {$ENDIF}
   System.Types,
 
   Spring.Collections,
@@ -42,13 +44,13 @@ type
     procedure SetValue(ix: integer; value: integer); override;
     function GetNACode: integer;
   public
-    constructor Create(engine: IREngine; pExpr: PSEXPREC); overload;
-    constructor Create(engine: IREngine; vecLength: integer); overload;
-    constructor Create(engine: IREngine; vector: IEnumerable<integer>); overload;
-    constructor Create(engine: IREngine; vector: TArray<integer>); overload;
+    constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
+    constructor Create(const engine: IREngine; vecLength: integer); overload;
+    constructor Create(const engine: IREngine; const vector: IEnumerable<integer>); overload;
+    constructor Create(const engine: IREngine; const vector: TArray<integer>); overload;
     function GetArrayFast: TArray<integer>; override;
-    procedure CopyTo(destination: TArray<integer>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); //override;
-    procedure SetVectorDirect(values: TArray<integer>); override;
+    procedure CopyTo(const destination: TArray<integer>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); //override;
+    procedure SetVectorDirect(const values: TArray<integer>); override;
     property NACode: integer read GetNACode;
   end;
 
@@ -57,7 +59,7 @@ implementation
 { TIntegerVector }
 
 //------------------------------------------------------------------------------
-procedure TIntegerVector.CopyTo(destination: TArray<integer>; copyCount,
+procedure TIntegerVector.CopyTo(const destination: TArray<integer>; copyCount,
   sourceIndex, destinationIndex: integer);
 var
   offset: integer;
@@ -82,29 +84,27 @@ begin
   CopyMemory(PDestination, PData, copyCount * DataSize);
 end;
 //------------------------------------------------------------------------------
-constructor TIntegerVector.Create(engine: IREngine; pExpr: PSEXPREC);
+constructor TIntegerVector.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
   // -- pExpr is a pointer to an integer vector.
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
-constructor TIntegerVector.Create(engine: IREngine; vecLength: integer);
+constructor TIntegerVector.Create(const engine: IREngine; vecLength: integer);
 begin
   // -- The base constructor calls Rf_allocVector
   inherited Create(engine, TSymbolicExpressionType.IntegerVector, vecLength);
 end;
 //------------------------------------------------------------------------------
-constructor TIntegerVector.Create(engine: IREngine; vector: TArray<integer>);
+constructor TIntegerVector.Create(const engine: IREngine; const vector: TArray<integer>);
 var
   pExpr: PSEXPREC;
-  allocVec: TRfnAllocVector;
 begin
   // -- There's no base constructor that uses a TArray parameter, so build
   // -- everything we need here. 
 
   // -- First get the pointer to the R expression.
-  allocVec := GetProcAddress(engine.Handle, 'Rf_allocVector');
-  pExpr := allocVec(TSymbolicExpressionType.IntegerVector, Length(vector));
+  pExpr := Engine.Rapi.AllocVector(TSymbolicExpressionType.IntegerVector, Length(vector));
 
   Create(engine, pExpr);
 
@@ -112,8 +112,8 @@ begin
   CopyMemory(DataPointer, PInteger(vector), Length(vector) * DataSize);
 end;
 //------------------------------------------------------------------------------
-constructor TIntegerVector.Create(engine: IREngine;
-  vector: IEnumerable<integer>);
+constructor TIntegerVector.Create(const engine: IREngine;
+  const vector: IEnumerable<integer>);
 begin
   // -- The base constructor calls SetVector(vector.ToArray), which in turn
   // -- calls SetVectorDirect (implemented in this class).
@@ -175,7 +175,7 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
-procedure TIntegerVector.SetVectorDirect(values: TArray<integer>);
+procedure TIntegerVector.SetVectorDirect(const values: TArray<integer>);
 begin
   // -- Delphi, .NET and R all use contiguous memory blocks for 1D arrays.
   CopyMemory(DataPointer, PInteger(values), Length(values) * DataSize);
