@@ -27,7 +27,9 @@ uses
   {$ENDIF}
   System.Types,
 
-  Spring.Collections,
+  {$IFNDEF NO_SPRING}
+    Spring.Collections,
+  {$ENDIF}
 
   opaR.Interfaces,
   opaR.SEXPREC,
@@ -46,7 +48,9 @@ type
   public
     constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
     constructor Create(const engine: IREngine; vecLength: integer); overload;
-    constructor Create(const engine: IREngine; const vector: IEnumerable<double>); overload;
+    {$IFNDEF NO_SPRING}
+      constructor Create(const engine: IREngine; const vector: IEnumerable<double>); overload;
+    {$ENDIF}
     constructor Create(const engine: IREngine; const vector: TArray<double>); overload;
     function GetArrayFast: TArray<double>; override;
     procedure CopyTo(const destination: TArray<double>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); //override;
@@ -72,12 +76,14 @@ begin
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
-constructor TNumericVector.Create(const engine: IREngine; const vector: IEnumerable<double>);
-begin
-  // -- The base constructor calls SetVector(vector.ToArray), which in turn
-  // -- calls SetVectorDirect (implemented in this class).
-  inherited Create(engine, TSymbolicExpressionType.NumericVector, vector);
-end;
+{$IFNDEF NO_SPRING}
+  constructor TNumericVector.Create(const engine: IREngine; const vector: IEnumerable<double>);
+  begin
+    // -- The base constructor calls SetVector(vector.ToArray), which in turn
+    // -- calls SetVectorDirect (implemented in this class).
+    inherited Create(engine, TSymbolicExpressionType.NumericVector, vector);
+  end;
+{$ENDIF}
 //------------------------------------------------------------------------------
 constructor TNumericVector.Create(const engine: IREngine; const vector: TArray<double>);
 var

@@ -28,7 +28,9 @@ TGenericVector wraps the R list type. Note that this is not the same as a PairLi
 interface
 
 uses
+  {$IFNDEF NO_SPRING}
   Spring.Collections,
+  {$ENDIF}
 
   opaR.SEXPREC,
   opaR.VECTOR_SEXPREC,
@@ -50,7 +52,9 @@ type
   public
     constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
     constructor Create(const engine: IREngine; vecLength: integer); overload;
+    {$IFNDEF NO_SPRING}
     constructor Create(const engine: IREngine; const vector: IEnumerable<TSymbolicExpression>); overload;
+    {$ENDIF}
     constructor Create(const engine: IREngine; const vector: TArray<ISymbolicExpression>); overload;
     function GetArrayFast: TArray<ISymbolicExpression>; override;
     function ToPairlist: IPairlist;
@@ -77,6 +81,7 @@ begin
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
+{$IFNDEF NO_SPRING}
 constructor TGenericVector.Create(const engine: IREngine;
   const vector: IEnumerable<TSymbolicExpression>);
 var
@@ -99,6 +104,7 @@ begin
     Inc(ix);
   end;
 end;
+{$ENDIF}
 //------------------------------------------------------------------------------
 constructor TGenericVector.Create(const engine: IREngine;
   const vector: TArray<ISymbolicExpression>);

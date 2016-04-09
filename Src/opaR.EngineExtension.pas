@@ -44,8 +44,12 @@ uses
   System.Types,
   System.RegularExpressions,
 
+  {$IFNDEF NO_SPRING}
   Spring.Collections,
   Spring.Collections.Lists,
+  {$ELSE}
+  OpaR.NoSpring,
+  {$ENDIF}
 
   opaR.SEXPREC,
   opaR.Utils,

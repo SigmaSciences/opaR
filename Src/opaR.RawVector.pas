@@ -27,7 +27,9 @@ uses
   {$ENDIF}
   System.Types,
 
-  Spring.Collections,
+  {$IFNDEF NO_SPRING}
+    Spring.Collections,
+  {$ENDIF}
 
   opaR.Interfaces,
   opaR.SEXPREC,
@@ -45,7 +47,9 @@ type
   public
     constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
     constructor Create(const engine: IREngine; vecLength: integer); overload;
-    constructor Create(const engine: IREngine; const vector: IEnumerable<Byte>); overload;
+    {$IFNDEF NO_SPRING}
+      constructor Create(const engine: IREngine; const vector: IEnumerable<Byte>); overload;
+    {$ENDIF}
     constructor Create(const engine: IREngine; const vector: TArray<Byte>); overload;
     function GetArrayFast: TArray<Byte>; override;
     procedure CopyTo(const destination: TArray<Byte>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); //override;
@@ -105,11 +109,13 @@ begin
   CopyMemory(DataPointer, PByte(vector), Length(vector) * DataSize);
 end;
 //------------------------------------------------------------------------------
-constructor TRawVector.Create(const engine: IREngine;
-  const vector: IEnumerable<Byte>);
-begin
-  inherited Create(engine, TSymbolicExpressionType.RawVector, vector);
-end;
+{$IFNDEF NO_SPRING}
+  constructor TRawVector.Create(const engine: IREngine;
+    const vector: IEnumerable<Byte>);
+  begin
+    inherited Create(engine, TSymbolicExpressionType.RawVector, vector);
+  end;
+{$ENDIF}
 //------------------------------------------------------------------------------
 function TRawVector.GetArrayFast: TArray<Byte>;
 begin

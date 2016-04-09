@@ -26,7 +26,9 @@ uses
   Winapi.Windows,
   {$ENDIF}
 
-  Spring.Collections,
+  {$IFNDEF NO_SPRING}
+    Spring.Collections,
+  {$ENDIF}
 
   opaR.SEXPREC,
   opaR.Utils,
@@ -44,7 +46,9 @@ type
   public
     constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
     constructor Create(const engine: IREngine; vecLength: integer); overload;
-    constructor Create(const engine: IREngine; const vector: IEnumerable<LongBool>); overload;
+    {$IFNDEF NO_SPRING}
+      constructor Create(const engine: IREngine; const vector: IEnumerable<LongBool>); overload;
+    {$ENDIF}
     constructor Create(const engine: IREngine; const vector: TArray<LongBool>); overload;
     function GetArrayFast: TArray<LongBool>; override;
     procedure SetVectorDirect(const values: TArray<LongBool>); override;
@@ -65,10 +69,12 @@ begin
   inherited Create(engine, TSymbolicExpressionType.LogicalVector, vecLength);
 end;
 //------------------------------------------------------------------------------
-constructor TLogicalVector.Create(const engine: IREngine; const vector: IEnumerable<LongBool>);
-begin
-  inherited Create(engine, TSymbolicExpressionType.LogicalVector, vector);
-end;
+{$IFNDEF NO_SPRING}
+  constructor TLogicalVector.Create(const engine: IREngine; const vector: IEnumerable<LongBool>);
+  begin
+    inherited Create(engine, TSymbolicExpressionType.LogicalVector, vector);
+  end;
+{$ENDIF}
 //------------------------------------------------------------------------------
 constructor TLogicalVector.Create(const engine: IREngine; const vector: TArray<LongBool>);
 var

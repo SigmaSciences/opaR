@@ -37,7 +37,9 @@ interface
 uses
   System.Types,
 
+  {$IFNDEF NO_SPRING}
   Spring.Collections,
+  {$ENDIF}
 
   opaR.Interfaces,
   opaR.VectorUtils,
@@ -80,8 +82,10 @@ type
     constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
     constructor Create(const engine: IREngine;
       expressionType: TSymbolicExpressionType; vecLength: integer); overload;
+    {$IFNDEF NO_SPRING}
     constructor Create(const engine: IREngine;
       expressionType: TSymbolicExpressionType; const vector: IEnumerable<T>); overload;
+    {$ENDIF}
     function First: T;
     function GetEnumerator: IVectorEnumerator<T>;
     function Names: TArray<string>;
@@ -153,12 +157,14 @@ begin
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
+{$IFNDEF NO_SPRING}
 constructor TRVector<T>.Create(const engine: IREngine;
   expressionType: TSymbolicExpressionType; const vector: IEnumerable<T>);
 begin
   Create(engine, expressionType, vector.Count);
   SetVector(vector.ToArray);
 end;
+{$ENDIF}
 //------------------------------------------------------------------------------
 function TRVector<T>.First: T;
 begin

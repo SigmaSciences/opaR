@@ -28,7 +28,11 @@ interface
 uses
   System.Rtti,
 
+  {$IFNDEF NO_SPRING}
   Spring.Collections,
+  {$ELSE}
+  opaR.NoSpring,
+  {$ENDIF}
 
   opaR.SEXPREC,
   opaR.Utils,

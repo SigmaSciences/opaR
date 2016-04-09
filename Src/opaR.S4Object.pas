@@ -22,7 +22,11 @@ THOSE OF NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 -------------------------------------------------------------------------------}
 
 uses
-  Spring.Collections,
+  {$IFNDEF NO_SPRING}
+    Spring.Collections,
+  {$ELSE}
+    OpaR.NoSpring,
+  {$ENDIF}
 
   opaR.SEXPREC,
   opaR.Utils,

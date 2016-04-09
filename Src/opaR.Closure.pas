@@ -22,7 +22,11 @@ THOSE OF NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 interface
 
 uses
+  {$IFNDEF NO_SPRING}
   Spring.Collections.Dictionaries,
+  {$ELSE}
+  System.Generics.Collections,
+  {$ENDIF}
 
   opaR.Utils,
   opaR.SEXPREC,

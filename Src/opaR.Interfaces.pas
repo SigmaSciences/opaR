@@ -24,8 +24,13 @@ interface
 uses
   System.Variants,
 
+  {$IFNDEF NO_SPRING}
   Spring.Collections,
   Spring.Collections.Dictionaries,
+  {$ELSE}
+  System.Generics.Collections, // for TDictionary
+  Opar.NoSpring,
+  {$ENDIF}
   Generics.Tuples,      // from https://github.com/malcolmgroves/generics.tuples
 
   opaR.SEXPREC,

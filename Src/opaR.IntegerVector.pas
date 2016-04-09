@@ -27,7 +27,9 @@ uses
   {$ENDIF}
   System.Types,
 
+  {$IFNDEF NO_SPRING}
   Spring.Collections,
+  {$ENDIF}
 
   opaR.Interfaces,
   opaR.SEXPREC,
@@ -46,7 +48,9 @@ type
   public
     constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
     constructor Create(const engine: IREngine; vecLength: integer); overload;
+    {$IFNDEF NO_SPRING}
     constructor Create(const engine: IREngine; const vector: IEnumerable<integer>); overload;
+    {$ENDIF}
     constructor Create(const engine: IREngine; const vector: TArray<integer>); overload;
     function GetArrayFast: TArray<integer>; override;
     procedure CopyTo(const destination: TArray<integer>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); //override;
@@ -112,6 +116,7 @@ begin
   CopyMemory(DataPointer, PInteger(vector), Length(vector) * DataSize);
 end;
 //------------------------------------------------------------------------------
+{$IFNDEF NO_SPRING}
 constructor TIntegerVector.Create(const engine: IREngine;
   const vector: IEnumerable<integer>);
 begin
@@ -119,6 +124,7 @@ begin
   // -- calls SetVectorDirect (implemented in this class).
   inherited Create(engine, TSymbolicExpressionType.IntegerVector, vector);
 end;
+{$ENDIF}
 //------------------------------------------------------------------------------
 function TIntegerVector.GetArrayFast: TArray<integer>;
 begin

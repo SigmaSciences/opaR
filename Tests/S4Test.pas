@@ -6,7 +6,11 @@ uses
   System.SysUtils,
   TestFramework,
 
-  Spring.Collections,
+  {$IFNDEF NO_SPRING}
+    Spring.Collections,
+  {$ELSE}
+    opaR.NoSpring,
+  {$ENDIF}
 
   opaR.TestUtils,
   opaR.Engine,

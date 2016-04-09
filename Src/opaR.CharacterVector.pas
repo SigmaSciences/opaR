@@ -30,7 +30,9 @@ in turn obviously means poorer performance compared with, e.g., numeric vectors.
 interface
 
 uses
+  {$IFNDEF NO_SPRING}
   Spring.Collections,
+  {$ENDIF}
 
   opaR.SEXPREC,
   opaR.VECTOR_SEXPREC,
@@ -51,7 +53,9 @@ type
   public
     constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
     constructor Create(const engine: IREngine; vecLength: integer); overload;
+    {$IFNDEF NO_SPRING}
     constructor Create(const engine: IREngine; const vector: IEnumerable<string>); overload;
+    {$ENDIF}
     constructor Create(const engine: IREngine; const vector: TArray<string>); overload;
     function GetArrayFast: TArray<string>; override;
     function ToArray: TArray<string>;
@@ -77,6 +81,7 @@ begin
   inherited Create(engine, TSymbolicExpressionType.CharacterVector, vecLength);
 end;
 //------------------------------------------------------------------------------
+{$IFNDEF NO_SPRING}
 constructor TCharacterVector.Create(const engine: IREngine; const vector: IEnumerable<string>);
 var
   ix: integer;
@@ -98,6 +103,7 @@ begin
     Inc(ix);
   end;
 end;
+{$ENDIF}
 //------------------------------------------------------------------------------
 procedure TCharacterVector.CopyTo(const destination: TArray<string>; copyCount,
   sourceIndex, destinationIndex: integer);
