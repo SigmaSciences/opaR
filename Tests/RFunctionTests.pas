@@ -80,7 +80,6 @@ procedure TRFunctionTests.DataFrameReturned_Tests;
 var
   funcDef: string;
   fn1: IRFunction;
-  fn2: IRFunction;
   expr: ISymbolicExpression;
   df10: IDataFrame;
   nm: INumericMatrix;
@@ -219,7 +218,6 @@ var
   signifValues: TArray<double>;
   expected: TArray<double>;
   vec: IIntegerVector;
-  args: TArray<ISymbolicExpression>;
 begin
   valArray := TopaRArrayUtils.GenerateDoubleArray(0, 7);
   dpois := FEngine.GetSymbol('dpois').AsFunction;

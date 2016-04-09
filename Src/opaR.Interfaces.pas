@@ -31,7 +31,9 @@ uses
   System.Generics.Collections, // for TDictionary
   Opar.NoSpring,
   {$ENDIF}
+
   Generics.Tuples,      // from https://github.com/malcolmgroves/generics.tuples
+
 
   opaR.SEXPREC,
   opaR.Utils,

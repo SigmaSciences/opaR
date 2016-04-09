@@ -35,7 +35,7 @@ type
   TSymbol = class(TSymbolicExpression, ISymbol)
   private
     function GetPrintName: string;
-    class function GetOffsetOf(fieldName: string): integer;
+    //class function GetOffsetOf(fieldName: string): integer;
     procedure SetPrintName(const Value: string);
     function GetValue: ISymbolicExpression;
     function GetInternal: ISymbolicExpression;
@@ -65,11 +65,14 @@ begin
     result := TSymbolicExpression.Create(Engine, sexp.symsxp.internal);
 end;
 //------------------------------------------------------------------------------
+{
 class function TSymbol.GetOffsetOf(fieldName: string): integer;
 begin
-  { TODO : TSymbol.GetOffsetOf - possibly not needed. }
+  // TODO : TSymbol.GetOffsetOf - possibly not needed.
   result := 0;
 end;
+}
+
 //------------------------------------------------------------------------------
 function TSymbol.GetPrintName: string;
 var

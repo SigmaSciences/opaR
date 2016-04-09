@@ -130,7 +130,6 @@ var
   i: integer;
   len: integer;
   pExpr: PSEXPREC;
-  allocVec: TRfnAllocVector;
 begin
   // -- First get the pointer to the R expression.
   len := Length(vector);

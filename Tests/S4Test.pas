@@ -92,7 +92,7 @@ var
   s4: IS4Object;
   test: string;
   foo: string;
-  vec: IIntegerVector;
+
 begin
   test := QuotedStr('testclass');
   foo := QuotedStr('s4');

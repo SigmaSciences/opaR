@@ -39,7 +39,7 @@ uses
 type
   TRClosure = class(TRFunction)
   private
-    function GetArgumentNames: TArray<string>;
+    //function GetArgumentNames: TArray<string>;
     function GetArguments: IPairList;
     function GetBody: IRLanguage;
     function GetEnvironment: IREnvironment;
@@ -63,12 +63,14 @@ uses
 { TRClosure }
 
 //------------------------------------------------------------------------------
+{
 function TRClosure.GetArgumentNames: TArray<string>;
 begin
-  { TODO : TRClosure.GetArgumentNames }         // -- Not used internally by R.NET - implement later.
+  // TODO : TRClosure.GetArgumentNames          // -- Not used internally by R.NET - implement later.
   raise EopaRException.Create('TRClosure.GetArgumentNames not yet implemented');
   result := nil;
 end;
+}
 //------------------------------------------------------------------------------
 function TRClosure.GetArguments: IPairList;
 var

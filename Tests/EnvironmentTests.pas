@@ -32,7 +32,6 @@ procedure TEnvironmentTests.GlobalEnvironment_Test;
 var
   globalEnv: IREnvironment;
   arrSymbolNames: TArray<string>;
-  i: integer;
   arr1: TArray<double>;
   vec: INumericVector;
 begin

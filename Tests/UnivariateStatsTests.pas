@@ -63,6 +63,8 @@ begin
 
   // -- Check that the PairList and Tuple conversions are working by
   // -- searching for the "statistic" symbol.
+
+  p:=MaxDouble; // set to a value that will cause it to fail if not reset in the loop below
   for i := 0 to Length(arrTuple) - 1 do
   begin
     if arrTuple[i].Value1.PrintName = 'statistic' then
