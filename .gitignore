@@ -8,3 +8,4 @@ Tests/opaRTests.identcache
 Tests/opaRTests.res
 Tests/opaRTests.stat
 Tests/Win32/*
+*.~dsk
