@@ -135,6 +135,10 @@ type
     function CreateLogicalVector(arr: TArray<LongBool>): ILogicalVector;
     function CreateNumericVector(arr: TArray<double>): INumericVector;
     function CreateRawVector(arr: TArray<Byte>): IRawVector;
+    function CreateIntegerMatrix(value: TDynMatrix<integer>): IIntegerMatrix;
+    function CreateNumericMatrix(value: TDynMatrix<double>): INumericMatrix;
+    function CreateCharacterMatrix(value: TDynMatrix<string>): ICharacterMatrix;
+    function CreateLogicalMatrix(value: TDynMatrix<LongBool>): ILogicalMatrix;
     function GetAutoPrint: boolean;
     function GetDisposed: boolean;
     function GetGlobalEnvironment: IREnvironment;

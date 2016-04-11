@@ -103,6 +103,11 @@ type
     function CreateNumericVector(arr: TArray<double>): INumericVector;
     function CreateRawVector(arr: TArray<Byte>): IRawVector;
 
+    function CreateIntegerMatrix(value: TDynMatrix<integer>): IIntegerMatrix;
+    function CreateNumericMatrix(value: TDynMatrix<double>): INumericMatrix;
+    function CreateCharacterMatrix(value: TDynMatrix<string>): ICharacterMatrix;
+    function CreateLogicalMatrix(value: TDynMatrix<LongBool>): ILogicalMatrix;
+
     function Evaluate(statement: string): ISymbolicExpression;
     function EvaluateAsList(statement: string): IGenericVector;
     function GetPredefinedSymbol(symbolName: string): ISymbolicExpression;
@@ -134,7 +139,11 @@ uses
   opaR.IntegerVector,
   opaR.LogicalVector,
   opaR.CharacterVector,
-  opaR.RawVector;
+  opaR.RawVector,
+  opaR.IntegerMatrix,
+  opaR.CharacterMatrix,
+  opaR.NumericMatrix,
+  opaR.LogicalMatrix;
 
 const
   {$IFDEF WIN32}
@@ -300,6 +309,50 @@ begin
     raise EopaRException.Create('Error: R Engine is not running');
 
   result := TRawVector.Create(self as IREngine, arr);
+end;
+//------------------------------------------------------------------------------
+function TREngine.CreateIntegerMatrix(value: TDynMatrix<integer>): IIntegerMatrix;
+begin
+  if FdllHandle = 0 then
+    raise EopaRException.Create('Error: Null R DLL handle');
+
+  if not FIsRunning then
+    raise EopaRException.Create('Error: R Engine is not running');
+
+  result := TIntegerMatrix.Create(self as IREngine, value);
+end;
+//------------------------------------------------------------------------------
+function TREngine.CreateNumericMatrix(value: TDynMatrix<double>): INumericMatrix;
+begin
+  if FdllHandle = 0 then
+    raise EopaRException.Create('Error: Null R DLL handle');
+
+  if not FIsRunning then
+    raise EopaRException.Create('Error: R Engine is not running');
+
+  result := TNumericMatrix.Create(self as IREngine, value);
+end;
+//------------------------------------------------------------------------------
+function TREngine.CreateCharacterMatrix(value: TDynMatrix<string>): ICharacterMatrix;
+begin
+  if FdllHandle = 0 then
+    raise EopaRException.Create('Error: Null R DLL handle');
+
+  if not FIsRunning then
+    raise EopaRException.Create('Error: R Engine is not running');
+
+  result := TCharacterMatrix.Create(self as IREngine, value);
+end;
+//------------------------------------------------------------------------------
+function TREngine.CreateLogicalMatrix(value: TDynMatrix<LongBool>): ILogicalMatrix;
+begin
+  if FdllHandle = 0 then
+    raise EopaRException.Create('Error: Null R DLL handle');
+
+  if not FIsRunning then
+    raise EopaRException.Create('Error: R Engine is not running');
+
+  result := TLogicalMatrix.Create(self as IREngine, value);
 end;
 //------------------------------------------------------------------------------
 class procedure TREngine.SetEnvironmentVariables(path: string = ''; homeDir: string = '');
