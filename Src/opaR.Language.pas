@@ -43,7 +43,6 @@ implementation
 function TRLanguage.FunctionCall: IPairList;
 var
   pairCount: integer;
-  sexp: TSEXPREC;
 begin
   pairCount := Engine.Rapi.Length(Handle);
 
@@ -51,8 +50,7 @@ begin
     result := nil
   else
   begin
-    sexp := GetInternalStructure;
-    result := TPairList.Create(Engine, sexp.listsxp.cdrval);
+    result := TPairList.Create(Engine, Engine.Rapi.CDR_LinkedList(Handle));
   end;
 end;
 

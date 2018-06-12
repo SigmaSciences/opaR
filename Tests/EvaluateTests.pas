@@ -35,7 +35,7 @@ implementation
 //------------------------------------------------------------------------------
 procedure TEvaluateTests.Eval_Test1;
 begin
-
+  Check(True, 'Dummy');
 end;
 //------------------------------------------------------------------------------
 procedure TEvaluateTests.SetUp;

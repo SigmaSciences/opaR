@@ -86,7 +86,7 @@ var
   levelIndices: TArray<integer>;
 begin
   levels := GetLevels;
-  levelIndices := GetArrayFast;
+  levelIndices := ToArray;
   SetLength(result, VectorLength);
   for i := 0 to VectorLength - 1 do
     if levelIndices[i] = NACode then

@@ -79,6 +79,18 @@ type
   // -- R_ParseVector returns a pointer to a TExpressionVector (SEXP).
   TRFnParseVector = function(statement: PSEXPREC; statementCount: integer; var status: TParseStatus; p: PSEXPREC): PSEXPREC; cdecl;
 
+  TRFnVectorElt = function(aVector: PSEXPREC; const aIndex: integer): PSEXPREC; cdecl;
+  TRFnSetVectorElt = function(aVector: PSEXPREC; const aIndex: integer; aValue: PSEXPREC): PSEXPREC; cdecl;
+
+  TRFnStringElt = function(aVector: PSEXPREC; const aIndex: integer): PSEXPREC; cdecl;
+  TRFnSetStringElt = procedure(aVector: PSEXPREC; const aIndex: integer; aValue: PSEXPREC); cdecl;
+  TRFnChar = function(aStringExpRec: PSEXPREC): PAnsiChar; cdecl;
+
+  TRFnRealVector = function(aVector: PSEXPREC): PDouble; cdecl;
+  TRFnLogicalVector = function(aVector: PSEXPREC): PLongBool; cdecl;
+  TRFnIntegerVector = function(aVector: PSEXPREC): PInteger; cdecl;
+  TRFnRawVector = function(aVector: PSEXPREC): PByte; cdecl;
+
   // -- Rf_mkString creates a string SEXP (vector of R class "character" containing a single string)
   TRFnMakeString = function(const s: PAnsiChar): PSEXPREC; cdecl;
   // -- Rf_mkChar
@@ -160,7 +172,22 @@ type
   // -- R_CleanTempDir
   TRfnCleanTempDir = procedure; cdecl;
 
+  TRfnCAR = function(const aNodeHandle: PSEXPREC): PSEXPREC; cdecl;
+  TRfnCDR = function(const aNodeHandle: PSEXPREC): PSEXPREC; cdecl;
+  TRfnTAG = function(const aNodeHandle: PSEXPREC): PSEXPREC; cdecl;
 
+  TRfnPrintName = function(const aSymbolHandle: PSEXPREC): PSEXPREC; cdecl;
+  TRfnSetPrintName = procedure(const aHandle, aNameHandle: PSEXPREC); cdecl;
+
+  TRfnATTRIB = function(const aHandle: PSEXPREC): PSEXPREC; cdecl;
+  TRfnTypeOf = function(const aHandle: PSEXPREC): integer; cdecl;
+  TRfnENCLOS = function(const aHandle: PSEXPREC): PSEXPREC; cdecl;
+  TRfnInternal = function(const aHandle: PSEXPREC): PSEXPREC; cdecl;
+  TRfnSYMVALUE = function(const aHandle: PSEXPREC): PSEXPREC; cdecl;
+  TRfnFORMALS = function(const aHandle: PSEXPREC): PSEXPREC; cdecl;
+  TRfnBODY = function(const aHandle: PSEXPREC): PSEXPREC; cdecl;
+  TRfnCLOENV = function(const aHandle: PSEXPREC): PSEXPREC; cdecl;
+  
   // -- The following are useful for debugging. Also see R_inspect and R_inspect3.
   // -- Rf_PrintValue
   TRFnPrintValue = procedure(p: PSEXPREC); cdecl;
@@ -208,6 +235,8 @@ type
     class var FNumRows: TRFnNumRows;
     class var FNewEnvironment: TRFnNewEnvironment;
     class var FParseVector: TRFnParseVector;
+    class var FVectorElt: TRFnVectorElt;
+    class var FSetVectorElt: TRFnSetVectorElt;
     class var FPreserveObject: TRFnPreserveObject;
     class var FPrintValue: TRFnPrintValue;
     class var FProtect: TRFnProtect;
@@ -221,12 +250,33 @@ type
     class var FSetupMainLoop: TRfnSetupMainLoop;
     class var FSetTag: TRFnSetTag;
     class var FUnprotect: TRFnUnprotectPtr;
+    class var FRawVector: TRFnRawVector;
+    class var FIntegerVector: TRFnIntegerVector;
+    class var FLogicalVector: TRFnLogicalVector;
+    class var FRealVector: TRFnRealVector;
     class var FVectorToPairList: TRFnVectorToPairList;
+    class var FStringElt: TRFnStringElt;
+    class var FChar: TRFnChar;
+    class var FSetStringElt: TRFnSetStringElt;
+    class var FCAR_LinkedList: TRfnCAR;
+    class var FCDR_LinkedList: TRfnCDR;
+    class var FTAG_LinkedList: TRfnTAG;
+    class var FPrintName: TRfnPrintName;
+    class var FATTRIB: TRfnATTRIB;
+    class var FTypeOf: TRfnTypeOf;
+    class var FEnClos: TRfnENCLOS;
+    class var FINTERNAL: TRfnInternal;
+    class var FSYMVALUE: TRfnSYMVALUE;
+    class var FSetPrintName: TRfnSetPrintName;
+    class var FFORMALS: TRfnFORMALS;
+    class var FBODY: TRfnBODY;
+    class var FCLOENV: TRfnCLOENV;
   public
     constructor Create(dllHandle: HMODULE);
     class function AllocMatrix(const exprType: TSymbolicExpressionType; rowCount, columnCount: integer): PSEXPREC; static;
     class function AllocVector(const exprType: TSymbolicExpressionType; length: integer): PSEXPREC; static;
     class function AsCharacterFactor(p: PSEXPREC): PSEXPREC; static;
+    class function Char(aStringExpRec: PSEXPREC): PAnsiChar; static;
     class function CoerceVector(p: PSEXPREC; const exprType: TSymbolicExpressionType): PSEXPREC; static;
     class function Cons(h1, h2: PSEXPREC): PSEXPREC; static;
     class function DLLVersion: PAnsiChar; static;
@@ -259,6 +309,10 @@ type
     class function NumCols(p: PSEXPREC): integer; static;
     class function NumRows(p: PSEXPREC): integer; static;
     class function ParseVector(statement: PSEXPREC; statementCount: integer; var status: TParseStatus; p: PSEXPREC): PSEXPREC; static;
+    class function VectorElt(aVector: PSEXPREC; const aVecvtorIndex: integer):
+        PSEXPREC; static;
+    class function SetVectorElt(aVector: PSEXPREC; const aVecvtorIndex: integer;
+        aValue: PSEXPREC): PSEXPREC; static;
     class function Protect(p: PSEXPREC): PSEXPREC; static;
     class function TryEval(h1, h2: PSEXPREC; var errorOccurred: LongBool): PSEXPREC; static;
     class function VectorToPairList(p: PSEXPREC): PSEXPREC; static;
@@ -266,17 +320,38 @@ type
     class procedure CleanTempDir; static;
     class procedure DefineVar(s1, s2, handle: PSEXPREC); static;
     class procedure DoSlotAssign(h1, p, h2: PSEXPREC); static;
+    class function IntegerVector(aVector: PSEXPREC): PInteger; static;
+    class function LogicalVector(aVector: PSEXPREC): PLongBool; static;
     class procedure PreserveObject(p: PSEXPREC); static;
     class procedure PrintValue(p: PSEXPREC); static;
+    class function RawVector(aVector: PSEXPREC): PByte; static;
+    class function RealVector(aVector: PSEXPREC): PDouble; static;
     class procedure ReleaseObject(sexp: PSEXPREC); static;
     class procedure RunExitFinalizers; static;
     class procedure SetAttrib(sexp, s, handle: PSEXPREC); static;
     class procedure SetParams(var start: TRStart); static;
     class procedure SetStartTime; static;
+    class procedure SetStringElt(aVector: PSEXPREC; const aIndex: integer; aValue:
+        PSEXPREC); static;
     class procedure SetTag(expr, tag: PSEXPREC); static;
     class procedure SetupMainLoop; static;
+    class function StringElt(aVector: PSEXPREC; const aIndex: integer): PSEXPREC;
+        static;
     class procedure UnloadDLL; static;
     class procedure Unprotect(p: PSEXPREC); static;
+    class function CAR_LinkedList(const aCurrentNode: PSEXPREC): PSEXPREC; static;
+    class function CDR_LinkedList(const aCurrentNode: PSEXPREC): PSEXPREC; static;
+    class function TAG_LinkedList(const aCurrentNode: PSEXPREC): PSEXPREC; static;
+    class function PrintName(const aSymbolHandle: PSEXPREC): PSEXPREC; static;
+    class function ATTRIB(const aAttributeHandle: PSEXPREC): PSEXPREC; static;
+    class function TypeOf(const aHandle: PSEXPREC): integer; static;
+    class function ENCLOS(const aHandle: PSEXPREC): PSEXPREC; static;
+    class function INTERNAL(const aHandle: PSEXPREC): PSEXPREC; static;
+    class function SYMVALUE(const aHandle: PSEXPREC): PSEXPREC; static;
+    class procedure SET_PRINTNAME(const aHandle, aNameHandle: PSEXPREC); static;
+    class function FORMALS(const aHandle: PSEXPREC): PSEXPREC; static;
+    class function BODY(const aHandle: PSEXPREC): PSEXPREC; static;
+    class function CLOENV(const aHandle: PSEXPREC): PSEXPREC; static;
   end;
 
 implementation
@@ -340,6 +415,49 @@ constructor TRapi.Create(dllHandle: HMODULE);
 begin
   FdllHandle := dllHandle;
 end;
+
+class function TRapi.ATTRIB(const aAttributeHandle: PSEXPREC): PSEXPREC;
+begin
+  if @FATTRIB = nil then
+    FATTRIB := GetRProcAddress('ATTRIB');
+  Result := FATTRIB(aAttributeHandle);
+end;
+
+class function TRapi.BODY(const aHandle: PSEXPREC): PSEXPREC;
+begin
+  if @FBODY = nil then
+    FBODY := GetRProcAddress('BODY');
+  Result := FBODY(aHandle);
+end;
+
+class function TRapi.CAR_LinkedList(const aCurrentNode: PSEXPREC): PSEXPREC;
+begin
+  if @FCAR_LinkedList = nil then
+    FCAR_LinkedList := GetRProcAddress('CAR');
+  Result := FCAR_LinkedList(aCurrentNode);
+end;
+
+class function TRapi.CDR_LinkedList(const aCurrentNode: PSEXPREC): PSEXPREC;
+begin
+  if @FCDR_LinkedList = nil then
+    FCDR_LinkedList := GetRProcAddress('CDR');
+  Result := FCDR_LinkedList(aCurrentNode);
+end;
+
+class function TRapi.Char(aStringExpRec: PSEXPREC): PAnsiChar;
+begin
+  if @FChar = nil then
+    FChar := GetRProcAddress('R_CHAR');
+  Result := FChar(aStringExpRec);
+end;
+
+class function TRapi.CLOENV(const aHandle: PSEXPREC): PSEXPREC;
+begin
+  if @FCLOENV = nil then
+    FCLOENV := GetRProcAddress('CLOENV');
+  Result := FCLOENV(aHandle);
+end;
+
 //------------------------------------------------------------------------------
 class procedure TRapi.DefineVar(s1, s2, handle: PSEXPREC);
 begin
@@ -368,6 +486,14 @@ begin
     FDoSlotAssign := GetRProcAddress('R_do_slot_assign');
   FDoSlotAssign(h1, p, h2);
 end;
+
+class function TRapi.ENCLOS(const aHandle: PSEXPREC): PSEXPREC;
+begin
+  if @FEnClos = nil then
+    FEnClos := GetRProcAddress('ENCLOS');
+  Result := FEnClos(aHandle);
+end;
+
 //------------------------------------------------------------------------------
 class function TRapi.Eval(h1, h2: PSEXPREC): PSEXPREC;
 begin
@@ -382,6 +508,14 @@ begin
     FFindVar := GetRProcAddress('Rf_findVar');
   result := FFindVar(symbol, handle);
 end;
+
+class function TRapi.FORMALS(const aHandle: PSEXPREC): PSEXPREC;
+begin
+  if @FFORMALS = nil then
+    FFORMALS := GetRProcAddress('FORMALS');
+  Result := FFORMALS(aHandle);
+end;
+
 //------------------------------------------------------------------------------
 class function TRapi.GetAttrib(sexp, s: PSEXPREC): PSEXPREC;
 begin
@@ -430,6 +564,21 @@ begin
     FInstall := GetRProcAddress('Rf_install');
   result := FInstall(s);
 end;
+
+class function TRapi.IntegerVector(aVector: PSEXPREC): PInteger;
+begin
+  if @FIntegerVector = nil then
+    FIntegerVector := GetRProcAddress('INTEGER');
+  result := FIntegerVector(aVector);
+end;
+
+class function TRapi.INTERNAL(const aHandle: PSEXPREC): PSEXPREC;
+begin
+  if @FINTERNAL = nil then
+    FINTERNAL := GetRProcAddress('INTERNAL');
+  Result := FINTERNAL(aHandle);
+end;
+
 //------------------------------------------------------------------------------
 class function TRapi.IsEnvironment(p: PSEXPREC): LongBool;
 begin
@@ -521,6 +670,14 @@ begin
     FLength := GetRProcAddress('Rf_length');
   result := FLength(sexp);
 end;
+
+class function TRapi.LogicalVector(aVector: PSEXPREC): PLongBool;
+begin
+  if @FLogicalVector = nil then
+    FLogicalVector := GetRProcAddress('LOGICAL');
+  Result := FLogicalVector(aVector);
+end;
+
 //------------------------------------------------------------------------------
 class function TRapi.lsInternal(p: PSEXPREC; getAll: LongBool): PSEXPREC;
 begin
@@ -579,6 +736,15 @@ begin
     FPreserveObject := GetRProcAddress('R_PreserveObject');
   FPreserveObject(p);
 end;
+
+class function TRapi.PrintName(const aSymbolHandle: PSEXPREC): PSEXPREC;
+begin
+  if @FPrintName = nil then
+    FPrintName := GetRProcAddress('PRINTNAME');
+
+  Result := FPrintName(aSymbolHandle);
+end;
+
 //------------------------------------------------------------------------------
 class procedure TRapi.PrintValue(p: PSEXPREC);
 begin
@@ -593,6 +759,21 @@ begin
     FProtect := GetRProcAddress('Rf_protect');
   result := FProtect(p);
 end;
+
+class function TRapi.RawVector(aVector: PSEXPREC): PByte;
+begin
+  if @FRawVector = nil then
+    FRawVector := GetRProcAddress('RAW');
+  Result := FRawVector(aVector);
+end;
+
+class function TRapi.RealVector(aVector: PSEXPREC): PDouble;
+begin
+  if @FRealVector = nil then
+    FRealVector := GetRProcAddress('REAL');
+  Result := FRealVector(aVector);
+end;
+
 //------------------------------------------------------------------------------
 class procedure TRapi.ReleaseObject(sexp: PSEXPREC);
 begin
@@ -628,6 +809,15 @@ begin
     FSetStartTime := GetRProcAddress('R_setStartTime');
   FSetStartTime;
 end;
+
+class procedure TRapi.SetStringElt(aVector: PSEXPREC; const aIndex: integer;
+    aValue: PSEXPREC);
+begin
+  if @FSetStringElt = nil then
+    FSetStringElt := GetRProcAddress('SET_STRING_ELT');
+  FSetStringElt(aVector, aIndex, aValue);
+end;
+
 //------------------------------------------------------------------------------
 class procedure TRapi.SetTag(expr, tag: PSEXPREC);
 begin
@@ -642,6 +832,44 @@ begin
     FSetupMainLoop := GetRProcAddress('setup_Rmainloop');
   FSetupMainLoop;
 end;
+
+class function TRapi.SetVectorElt(aVector: PSEXPREC; const aVecvtorIndex:
+    integer; aValue: PSEXPREC): PSEXPREC;
+begin
+  if @FSetVectorElt = nil then
+    FSetVectorElt := GetRProcAddress('SET_VECTOR_ELT');
+  Result := FSetVectorElt(aVector, aVecvtorIndex, aValue);
+end;
+
+class procedure TRapi.SET_PRINTNAME(const aHandle, aNameHandle: PSEXPREC);
+begin
+  if @FSetPrintName = nil then
+    FSetPrintName := GetRProcAddress('SET_PRINTNAME');
+  FSetPrintName(aHandle, aNameHandle);
+end;
+
+class function TRapi.StringElt(aVector: PSEXPREC; const aIndex: integer):
+    PSEXPREC;
+begin
+  if @FStringElt = nil then
+    FStringElt := GetRProcAddress('STRING_ELT');
+  Result := FStringElt(aVector, aIndex);
+end;
+
+class function TRapi.SYMVALUE(const aHandle: PSEXPREC): PSEXPREC;
+begin
+  if @FSYMVALUE = nil then
+    FSYMVALUE := GetRProcAddress('SYMVALUE');
+  Result := FSYMVALUE(aHandle);
+end;
+
+class function TRapi.TAG_LinkedList(const aCurrentNode: PSEXPREC): PSEXPREC;
+begin
+  if @FTAG_LinkedList = nil then
+    FTAG_LinkedList := GetRProcAddress('TAG');
+  Result := FTAG_LinkedList(aCurrentNode);
+end;
+
 //------------------------------------------------------------------------------
 class function TRapi.TryEval(h1, h2: PSEXPREC;
   var errorOccurred: LongBool): PSEXPREC;
@@ -650,6 +878,14 @@ begin
     FTryEval := GetRProcAddress('R_tryEval');
   result := FTryEval(h1, h2, errorOccurred);
 end;
+
+class function TRapi.TypeOf(const aHandle: PSEXPREC): integer;
+begin
+  if @FTypeOf = nil then
+    FTypeOf := GetRProcAddress('TYPEOF');
+  Result := FTypeOf(aHandle);
+end;
+
 //------------------------------------------------------------------------------
 class procedure TRapi.UnloadDLL;
 begin
@@ -662,6 +898,15 @@ begin
     FUnprotect := GetRProcAddress('Rf_unprotect_ptr');
   FUnprotect(p);
 end;
+
+class function TRapi.VectorElt(aVector: PSEXPREC; const aVecvtorIndex:
+    integer): PSEXPREC;
+begin
+  if @FVectorElt = nil then
+    FVectorElt := GetRProcAddress('VECTOR_ELT');
+  Result := FVectorElt(aVector, aVecvtorIndex);
+end;
+
 //------------------------------------------------------------------------------
 class function TRapi.VectorToPairList(p: PSEXPREC): PSEXPREC;
 begin

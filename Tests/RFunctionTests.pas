@@ -175,10 +175,10 @@ begin
   group2 := FEngine.Evaluate('group2 <- c(29.89, 29.93, 29.72, 29.98, 30.02, 29.98)').AsNumeric;
   studentTest := FEngine.Evaluate('t.test').AsFunction;
   testResult := studentTest.Invoke(TArray<ISymbolicExpression>.Create(group1 as ISymbolicExpression, group2 as ISymbolicExpression)).AsList;
-  Check(SameValue(0.090773324285671, testResult['p.value'].AsNumeric.First));
+  Check(SameValue(0.090773324285671, testResult.ValueByName['p.value'].AsNumeric.First));
 
   expr := studentTest.Invoke(TArray<ISymbolicExpression>.Create(FEngine.Evaluate('1:10'), FEngine.Evaluate('7:20')));
-  Check(SameValue(1.85528183251e-05, expr.AsList['p.value'].AsNumeric[0]));
+  Check(SameValue(1.85528183251e-05, expr.AsList.ValueByName['p.value'].AsNumeric[0]));
 end;
 //------------------------------------------------------------------------------
 procedure TRFunctionTests.SetUp;

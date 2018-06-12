@@ -579,7 +579,7 @@ begin
   // -- Build the argument list for the initialization call.
   R_argv := BuildRArgv(FStartupParameter);
   R_argc := Length(R_argv);
-  status := FRapi.InitializeR(R_argc, @R_argv[0]);
+  status := FRapi.InitializeR(R_argc, PPAnsiCharArray(@R_argv[0]));
 
   if status = 0 then
   begin

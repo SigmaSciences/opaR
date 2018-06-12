@@ -37,7 +37,6 @@ uses
 
   opaR.SEXPREC,
   opaR.Utils,
-  opaR.VectorUtils,
   opaR.StartupParameter,
   opaR.DLLFunctions;
 
@@ -65,12 +64,22 @@ type
   ICharacterDevice = interface;
   IREngine = interface;
 
+  IVectorEnumerator<T> = interface
+    function GetCurrent: T;
+    function MoveNext: Boolean;
+    property Current: T read GetCurrent;
+  end;
+
+  // -- Define our own IEnumerable<T> which doesn't depend on the non-generic version.
+  IVectorEnumerable<T> = interface
+    function GetEnumerator: IVectorEnumerator<T>;
+  end;
+
   ISymbolicExpression = interface
     ['{2C80F611-F3A7-49CF-B8EE-D96868F08BFF}']
     function GetAttribute(attributeName: string): ISymbolicExpression; overload;
     function GetAttribute(symbol: ISymbolicExpression): ISymbolicExpression; overload;
     function GetAttributeNames: TArray<string>;
-    function GetInternalStructure: TSEXPREC;
     function ReleaseHandle: boolean;
     procedure Preserve;
     procedure SetAttribute(attributeName: string; value: ISymbolicExpression); overload;
@@ -263,30 +272,27 @@ type
   IRVector<T> = interface(IVectorEnumerable<T>)
     ['{C194BD39-04F7-4C6B-8E65-4C4E15B37E98}']
     function First: T;
-    function GetArrayFast: TArray<T>;
     function GetLength: integer;
     function ToArray: TArray<T>;
-    function GetValue(ix: integer): T;
-    procedure SetValue(ix: integer; value: T);
+    function GetValueByIndex(const aIndex: integer): T;
+    procedure SetValueByIndex(const aIndex: integer; const aValue: T);
     function GetValueByName(const name: string): T;
     procedure SetValueByName(const name: string; value: T);
     procedure SetVectorDirect(const values: TArray<T>);
-    property Values[ix: integer]: T read GetValue write SetValue; default;
-    property Values[const name: string]: T read GetValueByName write SetValueByName; default;
+    property ValueByIndex[const aIndex: integer]: T read GetValueByIndex write SetValueByIndex; default;
+    property ValueByName[const name: string]: T read GetValueByName write SetValueByName;
     property VectorLength: integer read GetLength;
   end;
 
   INumericVector = interface(IRVector<double>)
     ['{C7DB9E76-8F0D-41CA-AD3D-1A6B0FF2A167}']
     function ToArray: TArray<double>;
-    procedure CopyTo(const destination: TArray<double>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0);
     procedure SetVectorDirect(const values: TArray<double>);
   end;
 
   ICharacterVector = interface(IRVector<string>)
     ['{1B3FAD8F-7156-4016-8D71-45276D068651}']
     function ToArray: TArray<string>;
-    procedure CopyTo(const destination: TArray<string>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0);
   end;
 
   IExpressionVector = interface(IRVector<IExpression>)
@@ -295,7 +301,6 @@ type
 
   IIntegerVector = interface(IRVector<integer>)
     ['{032F9C91-E144-4388-B596-934E0C0331CF}']
-    procedure CopyTo(const destination: TArray<integer>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0);
   end;
 
   ILogicalVector = interface(IRVector<LongBool>)
@@ -304,7 +309,6 @@ type
 
   IRawVector = interface(IRVector<Byte>)
     ['{5CC5E04F-E88F-4CB6-A607-ECA33C9D891A}']
-    procedure CopyTo(const destination: TArray<Byte>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0);
   end;
 
   IFactor = interface(IIntegerVector)
@@ -325,7 +329,7 @@ type
 
   IGenericVector = interface(IRVector<ISymbolicExpression>)
     ['{591195D7-0744-4DE1-B94B-5ED3731FEB4B}']
-    function GetArrayFast: TArray<ISymbolicExpression>;
+    function ToArray: TArray<ISymbolicExpression>;
     function ToPairlist: IPairlist;
     procedure SetNames(const names: TArray<string>); overload;
     procedure SetNames(const names: ICharacterVector); overload;
@@ -358,10 +362,10 @@ type
     function GetArrayValueByIndexAndName(rowIndex: integer; columnName: string): Variant;
     procedure SetArrayValueByIndexAndName(rowIndex: integer; columnName: string;
       const Value: Variant);
-    function GetArrayFast: TArray<IDynamicVector>; //reintroduce;
+    function ToArray: TArray<IDynamicVector>;
     function GetRow(rowIndex: integer): IDataFrameRow;
     function GetRows: IList<IDataFrameRow>;
-    procedure SetVectorDirect(const values: TArray<IDynamicVector>); //override;
+    procedure SetVectorDirect(const values: TArray<IDynamicVector>);
     property ColumnCount: integer read GetColumnCount;
     property ColumnNames: TArray<string> read GetColumnNames;
     property RowCount: integer read GetRowCount;
@@ -376,11 +380,12 @@ type
     function GetArrayFast: TDynMatrix<T>;
     function GetColumnCount: integer;
     function GetRowCount: integer;
-    function GetValue(rowIndex, columnIndex: integer): T;
-    procedure SetValue(rowIndex, columnIndex: integer; value: T);
+    function GetValueByIndex(const rowIndex, columnIndex: integer): T;
+    procedure SetValueByIndex(const rowIndex, columnIndex: integer; const value: T);
     property ColumnCount: integer read GetColumnCount;
     property RowCount: integer read GetRowCount;
-    property Values[rowIndex, columnIndex: integer]: T read GetValue write SetValue; default;
+    property ValueByIndex[const rowIndex, columnIndex: integer]: T read GetValueByIndex write
+        SetValueByIndex; default;
   end;
 
   IIntegerMatrix = interface(IRMatrix<integer>)

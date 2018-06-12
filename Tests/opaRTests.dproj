@@ -73,7 +73,7 @@
         <DCC_Define>_CONSOLE_TESTRUNNER;NO_SPRING;$(DCC_Define)</DCC_Define>
         <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
         <DCC_UnitSearchPath>$(BDS)\Source\DUnit\src;..\Src;..\Src\Devices;..\..\generics.tuples\src;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
-        <DCC_DcuOutput>.</DCC_DcuOutput>
+        <DCC_DcuOutput>.\$(Platform)\$(Config)\DCUs</DCC_DcuOutput>
         <DCC_ExeOutput>.\$(Platform)\$(Config)</DCC_ExeOutput>
         <DCC_E>false</DCC_E>
         <DCC_N>false</DCC_N>
@@ -170,13 +170,11 @@
         <DCC_UsePackage>FireDACSqliteDriver;FlexCel_Core;DBXSqliteDriver;FireDACPgDriver;fmx;TreeViewPresenter;IndySystem;TeeDB;tethering;FlexCel_Report;vclib;DBXInterBaseDriver;DbxCommonDriver;VCL_FlexCel_Components;vclimg;dbxcds;FMXChartTeeBI;MetropolisUILiveTile;RadiantShapesFmx;TMSFMXPackPkgDXE7;vcldb;vcldsnap;fmxFireDAC;CustomIPTransport;vclribbon;dsnap;IndyIPServer;fmxase;vcl;IndyCore;TMSFMXPackPkgDEDXE7;RadiantShapesFmx_Design;IndyIPCommon;CloudService;CodeSiteExpressPkg;FmxTeeUI;FireDACIBDriver;FMX_FlexCel_Core;BCEditor.Delphi.XE7.Runtime;soapserver;inetdbxpress;dsnapxml;VCLChartTeeBI;adortl;FireDACASADriver;bindcompfmx;FireDACODBCDriver;RESTBackendComponents;emsclientfiredac;rtl;dbrtl;DbxClientDriver;FireDACCommon;bindcomp;inetdb;Tee;DataBindings;vclFireDAC;FlexCel_Render;xmlrtl;svnui;ibxpress;VCLTeeBI;IndyProtocols;DBXMySQLDriver;FireDACCommonDriver;bindcompdbx;bindengine;vclactnband;soaprtl;FMXTee;TeeUI;bindcompvcl;VCL_FlexCel_Core;FlexCel_Pdf;vclie;FMX_FlexCel_Components;FireDACADSDriver;vcltouch;TeeBI;emsclient;VCLRESTComponents;FireDAC;VclSmp;Intraweb;dsnapcon;inet;fmxobj;FMXTeeBI;FireDACMySQLDriver;soapmidas;vclx;svn;fmxdae;RESTComponents;FlexCel_XlsAdapter;VirtualTreesR;FireDACMSAccDriver;dbexpress;EurekaLogCore;IndyIPClient;$(DCC_UsePackage)</DCC_UsePackage>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win64)'!=''">
+        <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;$(DCC_Namespace)</DCC_Namespace>
         <DCC_UsePackage>FireDACSqliteDriver;FlexCel_Core;DBXSqliteDriver;FireDACPgDriver;fmx;TreeViewPresenter;IndySystem;TeeDB;tethering;FlexCel_Report;vclib;DBXInterBaseDriver;DbxCommonDriver;VCL_FlexCel_Components;vclimg;dbxcds;MetropolisUILiveTile;RadiantShapesFmx;vcldb;vcldsnap;fmxFireDAC;CustomIPTransport;vclribbon;dsnap;IndyIPServer;fmxase;vcl;IndyCore;RadiantShapesFmx_Design;IndyIPCommon;CloudService;FmxTeeUI;FireDACIBDriver;FMX_FlexCel_Core;BCEditor.Delphi.XE7.Runtime;soapserver;inetdbxpress;dsnapxml;VCLChartTeeBI;adortl;FireDACASADriver;bindcompfmx;FireDACODBCDriver;RESTBackendComponents;emsclientfiredac;rtl;dbrtl;DbxClientDriver;FireDACCommon;bindcomp;inetdb;Tee;DataBindings;vclFireDAC;FlexCel_Render;xmlrtl;ibxpress;VCLTeeBI;IndyProtocols;DBXMySQLDriver;FireDACCommonDriver;bindcompdbx;bindengine;vclactnband;soaprtl;FMXTee;TeeUI;bindcompvcl;VCL_FlexCel_Core;FlexCel_Pdf;vclie;FMX_FlexCel_Components;FireDACADSDriver;vcltouch;TeeBI;emsclient;VCLRESTComponents;FireDAC;VclSmp;Intraweb;dsnapcon;inet;fmxobj;FireDACMySQLDriver;soapmidas;vclx;fmxdae;RESTComponents;FlexCel_XlsAdapter;VirtualTreesR;FireDACMSAccDriver;dbexpress;IndyIPClient;$(DCC_UsePackage)</DCC_UsePackage>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1)'!=''">
-        <VerInfo_Locale>1033</VerInfo_Locale>
-        <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
-        <DCC_DebugDCUs>true</DCC_DebugDCUs>
         <DCC_Optimize>false</DCC_Optimize>
         <DCC_GenerateStackFrames>true</DCC_GenerateStackFrames>
         <DCC_DebugInfoInExe>true</DCC_DebugInfoInExe>
@@ -260,27 +258,12 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployClass Name="DependencyModule">
-                    <Platform Name="Win32">
-                        <Operation>0</Operation>
-                        <Extensions>.dll;.bpl</Extensions>
-                    </Platform>
+                <DeployClass Name="ProjectiOSDeviceResourceRules">
                     <Platform Name="iOSDevice64">
                         <Operation>1</Operation>
-                        <Extensions>.dylib</Extensions>
-                    </Platform>
-                    <Platform Name="OSX32">
-                        <RemoteDir>Contents\MacOS</RemoteDir>
-                        <Operation>1</Operation>
-                        <Extensions>.dylib</Extensions>
                     </Platform>
                     <Platform Name="iOSDevice32">
                         <Operation>1</Operation>
-                        <Extensions>.dylib</Extensions>
-                    </Platform>
-                    <Platform Name="iOSSimulator">
-                        <Operation>1</Operation>
-                        <Extensions>.dylib</Extensions>
                     </Platform>
                 </DeployClass>
                 <DeployClass Name="ProjectOSXResource">
@@ -634,12 +617,27 @@
                         <Operation>1</Operation>
                     </Platform>
                 </DeployClass>
-                <DeployClass Name="ProjectiOSDeviceResourceRules">
+                <DeployClass Name="DependencyModule">
+                    <Platform Name="Win32">
+                        <Operation>0</Operation>
+                        <Extensions>.dll;.bpl</Extensions>
+                    </Platform>
                     <Platform Name="iOSDevice64">
                         <Operation>1</Operation>
+                        <Extensions>.dylib</Extensions>
+                    </Platform>
+                    <Platform Name="OSX32">
+                        <RemoteDir>Contents\MacOS</RemoteDir>
+                        <Operation>1</Operation>
+                        <Extensions>.dylib</Extensions>
                     </Platform>
                     <Platform Name="iOSDevice32">
                         <Operation>1</Operation>
+                        <Extensions>.dylib</Extensions>
+                    </Platform>
+                    <Platform Name="iOSSimulator">
+                        <Operation>1</Operation>
+                        <Extensions>.dylib</Extensions>
                     </Platform>
                 </DeployClass>
                 <ProjectRoot Platform="Win64" Name="$(PROJECTNAME)"/>
@@ -657,7 +655,7 @@
                 <Platform value="iOSSimulator">False</Platform>
                 <Platform value="OSX32">False</Platform>
                 <Platform value="Win32">True</Platform>
-                <Platform value="Win64">False</Platform>
+                <Platform value="Win64">True</Platform>
             </Platforms>
             <UnitTesting>
                 <TestFramework>DUnit / Delphi Win32</TestFramework>

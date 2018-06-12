@@ -42,8 +42,10 @@ type
   TRawVector = class(TRVector<Byte>, IRawVector)
   protected
     function GetDataSize: integer; override;
-    function GetValue(ix: integer): Byte; override;
-    procedure SetValue(ix: integer; value: Byte); override;
+    function GetValueByIndex(const aIndex: integer): Byte; override;
+    procedure PopulateArrayFastInternal(aArrayToPopulate: TArray<Byte>); override;
+    procedure SetValueByIndex(const aIndex: integer; const aValue: Byte); override;
+    procedure SetVectorDirect(const aNewValues: TArray<Byte>); override;
   public
     constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
     constructor Create(const engine: IREngine; vecLength: integer); overload;
@@ -51,40 +53,14 @@ type
       constructor Create(const engine: IREngine; const vector: IEnumerable<Byte>); overload;
     {$ENDIF}
     constructor Create(const engine: IREngine; const vector: TArray<Byte>); overload;
-    function GetArrayFast: TArray<Byte>; override;
-    procedure CopyTo(const destination: TArray<Byte>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); //override;
-    procedure SetVectorDirect(const values: TArray<Byte>); override;
   end;
 
 implementation
 
+uses
+  opaR.VectorUtils;
+
 { TRawVector }
-
-//------------------------------------------------------------------------------
-procedure TRawVector.CopyTo(const destination: TArray<Byte>; copyCount,
-  sourceIndex, destinationIndex: integer);
-var
-  offset: integer;
-  PData: PByte;
-  PDestination: PByte;
-begin
-  if destination = nil then
-    raise EopaRException.Create('Error: Destination array cannot be nil');
-
-  if (copyCount <= 0) then
-    raise EopaRException.Create('Error: Number of elements to copy must be > 0');
-
-  if (sourceIndex < 0) or (VectorLength < sourceIndex + copyCount) then
-    raise EopaRException.Create('Error: Source array index out of bounds');
-
-  if (destinationIndex < 0) or (Length(destination) < destinationIndex + copyCount) then
-    raise EopaRException.Create('Error: Destination array index out of bounds');
-
-  offset := GetOffset(sourceIndex);
-  PData := PByte(NativeInt(DataPointer) + offset);
-  PDestination := PByte(NativeInt(PByte(destination)) + destinationIndex * SizeOf(Byte));
-  CopyMemory(PDestination, PData, copyCount * DataSize);
-end;
 //------------------------------------------------------------------------------
 constructor TRawVector.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
@@ -106,69 +82,65 @@ begin
   Create(engine, pExpr);
 
   // -- Now copy the array data.
-  CopyMemory(DataPointer, PByte(vector), Length(vector) * DataSize);
+  SetVector(vector);
 end;
 //------------------------------------------------------------------------------
 {$IFNDEF NO_SPRING}
-  constructor TRawVector.Create(const engine: IREngine;
-    const vector: IEnumerable<Byte>);
-  begin
-    inherited Create(engine, TSymbolicExpressionType.RawVector, vector);
-  end;
-{$ENDIF}
-//------------------------------------------------------------------------------
-function TRawVector.GetArrayFast: TArray<Byte>;
+constructor TRawVector.Create(const engine: IREngine;
+  const vector: IEnumerable<Byte>);
 begin
-  SetLength(result, self.VectorLength);
-  CopyMemory(PByte(result), DataPointer, self.VectorLength * DataSize);
+  inherited Create(engine, TSymbolicExpressionType.RawVector, vector);
 end;
+{$ENDIF}
 //------------------------------------------------------------------------------
 function TRawVector.GetDataSize: integer;
 begin
   result := SizeOf(Byte);
 end;
 //------------------------------------------------------------------------------
-function TRawVector.GetValue(ix: integer): Byte;
+function TRawVector.GetValueByIndex(const aIndex: integer): Byte;
 var
-  pp: TProtectedPointer;
   PData: PByte;
-  offset: integer;
 begin
-  if (ix < 0) or (ix >= VectorLength) then
+  if (aIndex < 0) or (aIndex >= VectorLength) then
     raise EopaRException.Create('Error: Vector index out of bounds');
 
-  pp := TProtectedPointer.Create(self);
-  try
-    offset := GetOffset(ix);
-    PData := PByte(NativeInt(DataPointer) + offset);
-    result := PData^;
-  finally
-    pp.Free;
-  end;
+  PData := TVectorAccessUtility.GetPointerToRawInVector(Engine, Handle, aIndex);
+  result := PData^;
 end;
-//------------------------------------------------------------------------------
-procedure TRawVector.SetValue(ix: integer; value: Byte);
+
+procedure TRawVector.PopulateArrayFastInternal(aArrayToPopulate: TArray<Byte>);
 var
-  pp: TProtectedPointer;
   PData: PByte;
-  offset: integer;
+  PSource: PByte;
 begin
-  if (ix < 0) or (ix >= VectorLength) then
+  inherited;
+  PData := @(aArrayToPopulate[0]);
+  PSource := TVectorAccessUtility.GetPointerToRawInVector(Engine, Handle, 0);
+  CopyMemory(PData, PSource, Length(aArrayToPopulate) * DataSize);
+end;
+
+//------------------------------------------------------------------------------
+procedure TRawVector.SetValueByIndex(const aIndex: integer; const aValue: Byte);
+var
+  PData: PByte;
+begin
+  if (aIndex < 0) or (aIndex >= VectorLength) then
     raise EopaRException.Create('Error: Vector index out of bounds');
 
-  pp := TProtectedPointer.Create(self);
-  try
-    offset := GetOffset(ix);
-    PData := PByte(NativeInt(DataPointer) + offset);
-    PData^ := value;
-  finally
-    pp.Free;
-  end;
+  PData := TVectorAccessUtility.GetPointerToRawInVector(Engine, Handle, aIndex);
+  PData^ := aValue;
 end;
-//------------------------------------------------------------------------------
-procedure TRawVector.SetVectorDirect(const values: TArray<Byte>);
+
+procedure TRawVector.SetVectorDirect(const aNewValues: TArray<Byte>);
+var
+  PData: PByte;
+  PSource: PByte;
 begin
-  CopyMemory(DataPointer, PByte(values), Length(values) * DataSize);
+  inherited;
+  PData := TVectorAccessUtility.GetPointerToRawInVector(Engine, Handle, 0);
+  PSource := @(aNewValues[0]);
+  CopyMemory(PData, PSource, Length(aNewValues) * DataSize);
 end;
 
 end.

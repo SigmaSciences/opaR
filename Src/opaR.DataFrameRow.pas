@@ -75,7 +75,7 @@ function TDataFrameRow.GetInnerValue(ix: integer): Variant;
 var
   vec: IDynamicVector;
 begin
-  vec := DataFrame[ix];
+  vec := DataFrame.ValueByIndex[ix];
 
   if (vec as TSymbolicExpression).IsFactor then
     result := (vec as TSymbolicExpression).AsInteger[RowIndex]
@@ -92,7 +92,7 @@ function TDataFrameRow.GetValue(ix: integer): Variant;
 var
   vec: IDynamicVector;
 begin
-  vec := DataFrame[ix];
+  vec := DataFrame.ValueByIndex[ix];
   result := vec[RowIndex];
 end;
 //------------------------------------------------------------------------------
@@ -100,7 +100,7 @@ function TDataFrameRow.GetValueByName(name: string): Variant;
 var
   vec: IDynamicVector;
 begin
-  vec := DataFrame[name];
+  vec := DataFrame.ValueByName[name];
   result := vec[RowIndex];
 end;
 //------------------------------------------------------------------------------
@@ -108,7 +108,7 @@ procedure TDataFrameRow.SetInnerValue(ix: integer; const Value: Variant);
 var
   vec: IDynamicVector;
 begin
-  vec := DataFrame[ix];
+  vec := DataFrame.ValueByIndex[ix];
 
   if (vec as TSymbolicExpression).IsFactor then
     (vec as TSymbolicExpression).AsInteger[RowIndex] := Value.AsInteger
@@ -120,7 +120,7 @@ procedure TDataFrameRow.SetValue(ix: integer; const Value: Variant);
 var
   vec: IDynamicVector;
 begin
-  vec := DataFrame[ix];
+  vec := DataFrame.ValueByIndex[ix];
   vec[RowIndex] := Value;
 end;
 //------------------------------------------------------------------------------
@@ -128,7 +128,7 @@ procedure TDataFrameRow.SetValueByName(name: string; const Value: Variant);
 var
   vec: IDynamicVector;
 begin
-  vec := DataFrame[name];
+  vec := DataFrame.ValueByName[name];
   vec[RowIndex] := Value;
 end;
 

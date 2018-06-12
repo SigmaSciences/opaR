@@ -49,7 +49,8 @@ type
     class property Device: ICharacterDevice read GetDevice;
   end;
 
-  function ReadConsole(prompt, buffer: PAnsiChar; count: integer; history: LongBool): LongBool; cdecl;
+  function ReadConsole(prompt: PAnsiChar; out buffer: PAnsiChar; count: integer;
+      history: LongBool): LongBool; cdecl;
   procedure WriteConsole(const buffer: PAnsiChar; length: integer); cdecl;
   procedure WriteConsoleEx(const buffer: PAnsiChar; length: integer; outputType: TConsoleOutputType); cdecl;
   procedure Callback; cdecl;
@@ -61,7 +62,8 @@ type
 implementation
 
 //------------------------------------------------------------------------------
-function ReadConsole(prompt, buffer: PAnsiChar; count: integer; history: LongBool): LongBool; cdecl;
+function ReadConsole(prompt: PAnsiChar; out buffer: PAnsiChar; count: integer;
+    history: LongBool): LongBool;
 var
   input: string;
 begin

@@ -75,7 +75,7 @@ begin
     end;
   end;
 
-  Check(SameValue(0.283425541040142, testResult['p.value'].AsNumeric.First, 0.000000000000001));
+  Check(SameValue(0.283425541040142, testResult.ValueByName['p.value'].AsNumeric.First, 0.000000000000001));
   Check(SameValue(2.10278372591006, p, 0.000000000000005));
 end;
 //------------------------------------------------------------------------------
@@ -116,17 +116,17 @@ begin
   CheckEquals(9, testResult.VectorLength);
   CheckEquals(9, pairList.Count);
   CheckEquals(9, Length(arr));
-  Check(SameValue(0.090773324285671, testResult['p.value'].AsNumeric.First));
-  Check(SameValue(1.95900580810807, testResult['statistic'].AsNumeric.First));
+  Check(SameValue(0.090773324285671, testResult.ValueByName['p.value'].AsNumeric.First));
+  Check(SameValue(1.95900580810807, testResult.ValueByName['statistic'].AsNumeric.First));
   // -- The following is the lower bound of the confidence interval.
-  Check(SameValue(-0.0195690896460436, testResult['conf.int'].AsNumeric.First));
+  Check(SameValue(-0.0195690896460436, testResult.ValueByName['conf.int'].AsNumeric.First));
   // -- The following is the upper bound of the confidence interval.
   // -- Note that the following fails with the default epsilon in SameValue.
   // -- Float literals in Delphi Win32 are of extended type, so we can use
   // -- 16 digits after the decimal point in the epsilon below.
   // -- One option would be to use the extended type throughout opaR,
   // -- but extended is not supported in Delphi 64-bit.
-  Check(SameValue(0.209569089646041, testResult['conf.int'].AsNumeric[1], 0.000000000000001));
+  Check(SameValue(0.209569089646041, testResult.ValueByName['conf.int'].AsNumeric[1], 0.000000000000001));
 end;
 
 

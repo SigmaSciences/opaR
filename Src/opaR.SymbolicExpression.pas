@@ -57,7 +57,6 @@ type
     FIsProtected: boolean;
     FEngineHandle: HMODULE;
     FHandle: PSEXPREC;
-    Fsexp: TSEXPREC;
     FEngine: IREngine;
     function GetIsInvalid: boolean;
     function GetIsProtected: boolean;
@@ -107,7 +106,6 @@ type
     function GetAttribute(attributeName: string): ISymbolicExpression; overload;
     function GetAttribute(symbol: ISymbolicExpression): ISymbolicExpression; overload;
     function GetAttributeNames: TArray<string>;
-    function GetInternalStructure: TSEXPREC;
     function ReleaseHandle: boolean;
     procedure Preserve;
     procedure SetAttribute(attributeName: string; value: ISymbolicExpression); overload;
@@ -474,15 +472,9 @@ constructor TSymbolicExpression.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
   FEngine := engine;
   FEngineHandle := engine.Handle;
-  Fsexp := pExpr^;
   FHandle := pExpr;
   Preserve;   // -- Protect the structure from R's garbage collector.
 end;
-//------------------------------------------------------------------------------
-{constructor TSymbolicExpression.Create(dllHandle: HMODULE; pExpr: PSEXPREC);
-begin
-  
-end;}
 //------------------------------------------------------------------------------
 destructor TSymbolicExpression.Destroy;
 begin
@@ -629,26 +621,25 @@ function TSymbolicExpression.GetAttributeNames: TArray<string>;
 var
   i: integer;
   length: integer;
-  node: TSEXPREC;
-  attribute: TSEXPREC;
-  Ptr: PSEXPREC;
+  attributeTag: PSEXPREC;
+  ptrAttribute: PSEXPREC;
   internalStr: TInternalString;
 begin
-  length := Engine.Rapi.Length(Fsexp.attrib);
+  ptrAttribute := Engine.Rapi.Attrib(Handle);
+  length := Engine.Rapi.Length(ptrAttribute);
+
   SetLength(result, length);
 
-  Ptr := Fsexp.attrib;
   for i := 0 to length - 1 do
   begin
-    node := Ptr^;
-    attribute := node.listsxp.tagval^;
-    internalStr := TInternalString.Create(FEngine, attribute.symsxp.pname);
+    attributeTag := Engine.Rapi.TAG_LinkedList(ptrAttribute);
+    internalStr := TInternalString.Create(Engine, Engine.Rapi.TAG_LinkedList(attributeTag));
     try
       result[i] := internalStr.ToString;
     finally
       internalStr.Free;
     end;
-    Ptr := node.listsxp.cdrval;
+    ptrAttribute := Engine.Rapi.CDR_LinkedList(ptrAttribute);
   end;
 end;
 //------------------------------------------------------------------------------
@@ -659,18 +650,12 @@ end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.GetEngineHandle: HMODULE;
 begin
-  //result := FEngineHandle;
   result := FEngine.Handle;
 end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.GetHandle: PSEXPREC;
 begin
   result := FHandle;
-end;
-//------------------------------------------------------------------------------
-function TSymbolicExpression.GetInternalStructure: TSEXPREC;
-begin
-  result := Fsexp;
 end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.GetIsInvalid: boolean;
@@ -685,7 +670,7 @@ end;
 //------------------------------------------------------------------------------
 function TSymbolicExpression.GetType: TSymbolicExpressionType;
 begin
-  result := TSymbolicExpressionType(Fsexp.sxpinfo.type_);
+  result := TSymbolicExpressionType(Engine.Rapi.TypeOf(Handle));
 end;
 //------------------------------------------------------------------------------
 procedure TSymbolicExpression.Preserve;

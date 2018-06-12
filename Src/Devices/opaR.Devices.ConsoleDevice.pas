@@ -150,6 +150,7 @@ function TConsoleDevice.ShowFiles(files, headers: TArray<string>; title: string;
   delete: boolean; pager: string): boolean;
 begin
   { TODO : TConsoleDevice.ShowFiles - Check for Linux/OSX. }
+  result := False;
 end;
 //------------------------------------------------------------------------------
 procedure TConsoleDevice.ShowMessage(msg: string);

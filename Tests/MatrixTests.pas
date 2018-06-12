@@ -132,11 +132,9 @@ end;
 procedure TMatrixTests.MatrixCreation_Test;
 var
   integerMatrix: TDynMatrix<integer>;
-  characterMatrix: TDynMatrix<string>;
   numericMatrix: TDynMatrix<double>;
   logicalMatrix: TDynMatrix<longbool>;
   resultVec: TArray<integer>;
-  resultStringVec: TArray<string>;
   sumFunc: IRFunction;
   sumDef: string;
   i: Integer;

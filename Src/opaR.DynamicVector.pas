@@ -43,46 +43,37 @@ uses
 type
   TDynamicVector = class(TRVector<Variant>, IDynamicVector)
   private
-    function ReadBoolean(Ptr: PSEXPREC; offset: integer): LongBool;
-    function ReadByte(Ptr: PSEXPREC; offset: integer): Byte;
-    function ReadDouble(Ptr: PSEXPREC; offset: integer): double;
-    function ReadInteger(Ptr: PSEXPREC; offset: integer): integer;
-    function ReadString(Ptr: PSEXPREC; ix, offset: integer): string;
-    function ReadSymbolicExpression(Ptr: PSEXPREC; ix: integer): ISymbolicExpression;
-    procedure WriteBoolean(value: LongBool; Ptr: PSEXPREC; offset: integer);
-    procedure WriteByte(value: Byte; Ptr: PSEXPREC; offset: integer);
-    procedure WriteDouble(value: Extended; Ptr: PSEXPREC; offset: integer);
-    procedure WriteInteger(value: integer; Ptr: PSEXPREC; offset: integer);
-    procedure WriteString(const value: string; Ptr: PSEXPREC; ix: integer);
-    procedure WriteSymbolicExpression(const expr: ISymbolicExpression; Ptr: PSEXPREC; ix: integer);
+    function ReadBoolean(const ix: integer): LongBool;
+    function ReadByte(const ix: integer): Byte;
+    function ReadDouble(const ix: integer): double;
+    function ReadInteger(const ix: integer): integer;
+    function ReadString(const ix: integer): string;
+    function ReadSymbolicExpression(const ix: integer): ISymbolicExpression;
+    procedure WriteBoolean(const ix: integer; const value: LongBool);
+    procedure WriteByte(const ix: integer; value: Byte);
+    procedure WriteDouble(const ix: integer; const value: Extended);
+    procedure WriteInteger(const ix, value: integer);
+    procedure WriteString(const ix: integer; const value: string);
+    procedure WriteSymbolicExpression(const ix: integer; const expr:
+        ISymbolicExpression);
   protected
     function GetDataSize: integer; override;
-    function GetValue(ix: integer): Variant; override;
-    procedure SetValue(ix: integer; value: Variant); override;
-  public
-    function GetArrayFast: TArray<Variant>; override;
-    procedure SetVectorDirect(const values: TArray<Variant>); override;
+    function GetValueByIndex(const aIndex: integer): Variant; override;
+    procedure SetValueByIndex(const aIndex: integer; const aValue: Variant); override;
+    procedure SetVectorDirect(const aNewValues: TArray<Variant>); override;
+    procedure PopulateArrayFastInternal(aArrayToPopulate: TArray<Variant>);
+        override;
   end;
 
 implementation
 
 uses
   opaR.EngineExtension,
-  opaR.VECTOR_SEXPREC,
   opaR.Factor,
-  opaR.SymbolicExpression;
+  opaR.SymbolicExpression,
+  opaR.VectorUtils;
 
 { TDynamicVector }
-
-//------------------------------------------------------------------------------
-function TDynamicVector.GetArrayFast: TArray<Variant>;
-var
-  i: integer;
-begin
-  SetLength(result, VectorLength);
-  for i := 0 to VectorLength - 1 do
-    result[i] := GetValue(i);
-end;
 //------------------------------------------------------------------------------
 function TDynamicVector.GetDataSize: integer;
 begin
@@ -98,94 +89,90 @@ begin
   end;
 end;
 //------------------------------------------------------------------------------
-function TDynamicVector.GetValue(ix: integer): Variant;
+function TDynamicVector.GetValueByIndex(const aIndex: integer): Variant;
 var
-  offset: integer;
-  Ptr: PSEXPREC;
   fac: IFactor;
 begin
-  if (ix < 0) or (ix >= VectorLength) then
+  if (aIndex < 0) or (aIndex >= VectorLength) then
     raise EopaRException.Create('Error: Dynamic Vector index out of bounds');
 
-  { TODO : No protected pointer in R.NET code - not necessary? Then remove from other vector types? }
-  offset := GetOffset(ix);
-  Ptr := DataPointer;
-
   case Type_ of
-    TSymbolicExpressionType.NumericVector: result := ReadDouble(Ptr, offset);
+    TSymbolicExpressionType.NumericVector: result := ReadDouble(aIndex);
     TSymbolicExpressionType.IntegerVector: begin
       if IsFactor then
       begin
         fac := self.AsFactor;
-        result := fac.GetFactor(ix);
+        result := fac.GetFactor(aIndex);
       end
       else
-        result := ReadInteger(Ptr, offset);
+        result := ReadInteger(aIndex);
     end;
-    TSymbolicExpressionType.CharacterVector: result := ReadString(Ptr, ix, offset);
-    TSymbolicExpressionType.LogicalVector: result := ReadBoolean(Ptr, offset);
-    TSymbolicExpressionType.RawVector: result := ReadByte(Ptr, offset);
+    TSymbolicExpressionType.CharacterVector: result := ReadString(aIndex);
+    TSymbolicExpressionType.LogicalVector: result := ReadBoolean(aIndex);
+    TSymbolicExpressionType.RawVector: result := ReadByte(aIndex);
     else          // -- The default, used for ISymbolicExpression.
-      result := ReadSymbolicExpression(Ptr, ix);
+      result := ReadSymbolicExpression(aIndex);
   end;
 end;
+
+procedure TDynamicVector.PopulateArrayFastInternal(aArrayToPopulate:
+    TArray<Variant>);
+var
+  cntr: integer;
+begin
+  inherited;
+  // The result array must have been sized correctly prior to this call
+  for cntr := 0 to Length(aArrayToPopulate) - 1 do
+    aArrayToPopulate[cntr] := ValueByIndex[cntr];
+end;
+
 //------------------------------------------------------------------------------
-function TDynamicVector.ReadBoolean(Ptr: PSEXPREC; offset: integer): LongBool;
+function TDynamicVector.ReadBoolean(const ix: integer): LongBool;
 var
   PData: PLongBool;
 begin
-  PData := PLongBool(NativeInt(Ptr) + offset);
+  PData := TVectorAccessUtility.GetPointerToLogicalInVector(Engine, Handle, ix);
   result := PData^;
 end;
 //------------------------------------------------------------------------------
-function TDynamicVector.ReadByte(Ptr: PSEXPREC; offset: integer): Byte;
+function TDynamicVector.ReadByte(const ix: integer): Byte;
 var
   PData: PByte;
 begin
-  PData := PByte(NativeInt(Ptr) + offset);
+  PData := TVectorAccessUtility.GetPointerToRawInVector(Engine, Handle, ix);
   result := PData^;
 end;
 //------------------------------------------------------------------------------
-function TDynamicVector.ReadDouble(Ptr: PSEXPREC; offset: integer): double;
+function TDynamicVector.ReadDouble(const ix: integer): double;
 var
   PData: PDouble;
 begin
-  PData := PDouble(NativeInt(Ptr) + offset);
+  PData := TVectorAccessUtility.GetPointerToRealInVector(Engine, Handle, ix);
   result := PData^;
 end;
 //------------------------------------------------------------------------------
-function TDynamicVector.ReadInteger(Ptr: PSEXPREC; offset: integer): integer;
+function TDynamicVector.ReadInteger(const ix: integer): integer;
 var
   PData: PInteger;
 begin
-  PData := PInteger(NativeInt(Ptr) + offset);
+  PData := TVectorAccessUtility.GetPointerToIntegerInVector(Engine, Handle, ix);
   result := PData^;
 end;
 //------------------------------------------------------------------------------
-function TDynamicVector.ReadString(Ptr: PSEXPREC; ix, offset: integer): string;
-var
-  PPtr: PSEXPREC;
-  PData: PSEXPREC;
-  offsetVec: integer;
+function TDynamicVector.ReadString(const ix: integer): string;
 begin
-  PPtr := PSEXPREC(PPointerArray(Ptr)^[ix]);
-  if (PPtr = TEngineExtension(Engine).NAStringPointer) or (PPtr = nil) then
-    result := ''
-  else
-  begin
-    offsetVec := SizeOf(TVECTOR_SEXPREC);
-    PData := PSEXPREC(NativeInt(PPtr) + offsetVec);
+  if (ix < 0) or (ix >= VectorLength) then
+    raise EopaRException.Create('Error: Vector index out of bounds');
 
-    result := String(AnsiString(PAnsiChar(PData)));
-  end;
+  result := TVectorAccessUtility.GetStringValueInVector(Engine, Handle, ix);
 end;
 //------------------------------------------------------------------------------
-function TDynamicVector.ReadSymbolicExpression(Ptr: PSEXPREC;
-  ix: integer): ISymbolicExpression;
+function TDynamicVector.ReadSymbolicExpression(const ix: integer):
+    ISymbolicExpression;
 var
   PPtr: PSEXPREC;
 begin
-  PPtr := PSEXPREC(PPointerArray(DataPointer)^[ix]);
+  PPtr := Engine.RApi.VectorElt(Handle, ix);
 
   if (PPtr = nil) or (PPtr = TEngineExtension(Engine).NilValue) then
     result := nil
@@ -193,102 +180,90 @@ begin
     result := TSymbolicExpression.Create(Engine, PPtr);
 end;
 //------------------------------------------------------------------------------
-procedure TDynamicVector.SetValue(ix: integer; value: Variant);
+procedure TDynamicVector.SetValueByIndex(const aIndex: integer; const aValue: Variant);
 var
-  offset: integer;
-  Ptr: PSEXPREC;
   fac: IFactor;
   expr: ISymbolicExpression;
   Intf: IInterface;
 begin
-  if (ix < 0) or (ix >= VectorLength) then
+  if (aIndex < 0) or (aIndex >= VectorLength) then
     raise EopaRException.Create('Error: Vector index out of bounds');
 
-  offset := GetOffset(ix);
-  Ptr := DataPointer;
-
   case Type_ of
-    TSymbolicExpressionType.NumericVector: WriteDouble(value, Ptr, offset);
+    TSymbolicExpressionType.NumericVector: WriteDouble(aIndex, aValue);
     TSymbolicExpressionType.IntegerVector: begin
       if IsFactor then
       begin
         fac := self.AsFactor;
-        fac.SetFactor(ix, value);
+        fac.SetFactor(aIndex, aValue);
       end
       else
-        WriteInteger(value, Ptr, offset);
+        WriteInteger(aIndex, aValue);
     end;
-    TSymbolicExpressionType.CharacterVector: WriteString(value, Ptr, ix);
-    TSymbolicExpressionType.LogicalVector: WriteBoolean(value, Ptr, offset);
-    TSymbolicExpressionType.RawVector: WriteByte(value, Ptr, offset);
+    TSymbolicExpressionType.CharacterVector: WriteString(aIndex, aValue);
+    TSymbolicExpressionType.LogicalVector: WriteBoolean(aIndex, aValue);
+    TSymbolicExpressionType.RawVector: WriteByte(aIndex, aValue);
     else               // -- The default, used for ISymbolicExpression.
     begin
-      Intf := value;
+      Intf := aValue;
       expr := Intf as ISymbolicExpression;
-      WriteSymbolicExpression(expr, Ptr, ix);
+      WriteSymbolicExpression(aIndex, expr);
     end;
   end;
 end;
-//------------------------------------------------------------------------------
-procedure TDynamicVector.SetVectorDirect(const values: TArray<Variant>);
+
+procedure TDynamicVector.SetVectorDirect(const aNewValues: TArray<Variant>);
 var
-  i: integer;
+  cntr: integer;
 begin
-  // -- We have to copy the values individually, even for doubles and integers.
-  for i := 0 to Length(values) - 1 do
-    SetValue(i, values[i]);
+  inherited;
+  for cntr := 0 to VectorLength - 1 do
+    ValueByIndex[cntr] := aNewValues[cntr];
 end;
+
 //------------------------------------------------------------------------------
-procedure TDynamicVector.WriteBoolean(value: LongBool; Ptr: PSEXPREC;
-  offset: integer);
+procedure TDynamicVector.WriteBoolean(const ix: integer; const value: LongBool);
 var
   PData: PLongBool;
 begin
-  PData := PLongBool(NativeInt(Ptr) + offset);
+  PData := TVectorAccessUtility.GetPointerToLogicalInVector(Engine, Handle, ix);
   PData^ := value;
 end;
 //------------------------------------------------------------------------------
-procedure TDynamicVector.WriteByte(value: Byte; Ptr: PSEXPREC; offset: integer);
+procedure TDynamicVector.WriteByte(const ix: integer; value: Byte);
 var
   PData: PByte;
 begin
-  PData := PByte(NativeInt(Ptr) + offset);
+  PData := TVectorAccessUtility.GetPointerToRawInVector(Engine, Handle, ix);
   PData^ := value;
 end;
 //------------------------------------------------------------------------------
-procedure TDynamicVector.WriteDouble(value: Extended; Ptr: PSEXPREC;
-  offset: integer);
+procedure TDynamicVector.WriteDouble(const ix: integer; const value: Extended);
 var
   PData: PDouble;
 begin
-  PData := PDouble(NativeInt(Ptr) + offset);
+  PData := TVectorAccessUtility.GetPointerToRealInVector(Engine, Handle, ix);
   PData^ := value;
 end;
 //------------------------------------------------------------------------------
-procedure TDynamicVector.WriteInteger(value: integer; Ptr: PSEXPREC;
-  offset: integer);
+procedure TDynamicVector.WriteInteger(const ix, value: integer);
 var
   PData: PInteger;
 begin
-  PData := PInteger(NativeInt(Ptr) + offset);
+  PData := TVectorAccessUtility.GetPointerToIntegerInVector(Engine, Handle, ix);
   PData^ := value;
 end;
 //------------------------------------------------------------------------------
-procedure TDynamicVector.WriteString(const value: string; Ptr: PSEXPREC;
-  ix: integer);
-var
-  PData: PSEXPREC;
+procedure TDynamicVector.WriteString(const ix: integer; const value: string);
 begin
-  if value = '' then
-    PData := TEngineExtension(Engine).NAStringPointer
-  else
-    PData := Engine.Rapi.MakeChar(PAnsiChar(AnsiString(value)));
+  if (ix < 0) or (ix >= VectorLength) then
+    raise EopaRException.Create('Error: Vector index out of bounds');
 
-  PPointerArray(Ptr)^[ix] := PData;
+  TVectorAccessUtility.SetStringValueInVector(Engine, Handle, ix, Value);
 end;
 //------------------------------------------------------------------------------
-procedure TDynamicVector.WriteSymbolicExpression(const expr: ISymbolicExpression;
-  Ptr: PSEXPREC; ix: integer);
+procedure TDynamicVector.WriteSymbolicExpression(const ix: integer; const expr:
+    ISymbolicExpression);
 var
   PData: PSEXPREC;
 begin
@@ -297,7 +272,7 @@ begin
   else
     PData := expr.Handle;
 
-  PPointerArray(DataPointer)^[ix] := PData;
+  Engine.Rapi.SetVectorElt(Handle, ix, PData);
 end;
 
 end.

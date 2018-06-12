@@ -31,16 +31,19 @@ type
   TLogicalMatrix = class(TRMatrix<LongBool>, ILogicalMatrix)
   protected
     function GetDataSize: integer; override;
-    function GetValue(rowIndex, columnIndex: integer): LongBool; override;
-    procedure InitMatrixFastDirect(matrix: TDynMatrix<LongBool>); override;
-    procedure SetValue(rowIndex, columnIndex: integer; value: LongBool); override;
+    function GetValueForAbsoluteIndex(const aAbsoluteVectorIndex: integer):
+        LongBool; override;
+    procedure SetValueForAbsoluteIndex(const aAbsoluteVectorIndex: integer; const
+        value: LongBool); override;
   public
     constructor Create(const engine: IREngine; numRows, numCols: integer); overload;
     constructor Create(const engine: IREngine; matrix: TDynMatrix<LongBool>); overload;
-    function GetArrayFast: TDynMatrix<LongBool>; override;
   end;
 
 implementation
+
+uses
+  opaR.VectorUtils;
 
 { TLogicalMatrix }
 
@@ -57,85 +60,29 @@ begin
   inherited Create(engine, TSymbolicExpressionType.LogicalVector, matrix);
 end;
 //------------------------------------------------------------------------------
-function TLogicalMatrix.GetArrayFast: TDynMatrix<LongBool>;
-var
-  i: integer;
-  j: integer;
-begin
-  SetLength(result, RowCount, ColumnCount);
-
-  for i := 0 to RowCount - 1 do
-    for j := 0 to ColumnCount - 1 do
-      result[i, j] := GetValue(i, j);
-end;
-//------------------------------------------------------------------------------
 function TLogicalMatrix.GetDataSize: integer;
 begin
   result := SizeOf(LongBool);
 end;
-//------------------------------------------------------------------------------
-function TLogicalMatrix.GetValue(rowIndex, columnIndex: integer): LongBool;
+
+function TLogicalMatrix.GetValueForAbsoluteIndex(const aAbsoluteVectorIndex:
+    integer): LongBool;
 var
-  pp: TProtectedPointer;
   PData: PLongBool;
-  offset: integer;
 begin
-  if (rowIndex < 0) or (rowIndex >= RowCount) then
-    raise EopaRException.Create('Error: row index out of bounds');
-
-  if (columnIndex < 0) or (columnIndex >= ColumnCount) then
-    raise EopaRException.Create('Error: column index out of bounds');
-
-  pp := TProtectedPointer.Create(self);
-  try
-    offset := GetOffset(rowIndex, columnIndex);
-    PData := PLongBool(NativeInt(DataPointer) + offset);
-    result := PData^;
-  finally
-    pp.Free;
-  end;
+  inherited;
+  PData := TVectorAccessUtility.GetPointerToLogicalInVector(Engine, Handle, aAbsoluteVectorIndex);
+  result := PData^;
 end;
-//------------------------------------------------------------------------------
-procedure TLogicalMatrix.InitMatrixFastDirect(matrix: TDynMatrix<LongBool>);
-var
-  numRows: integer;
-  numCols: integer;
-  i: integer;
-  j: integer;
-begin
-  numRows := Length(matrix);
-  if numRows <= 0 then
-    raise EopaRException.Create('Error: Matrix rowCount must be greater than zero');
 
-  // -- Default memory layout for R is column-major, while Delphi is row-major,
-  // -- so can't copy blocks.
-  numCols := Length(matrix[0]);
-  for i := 0 to numRows - 1 do
-    for j := 0 to numCols - 1 do
-      SetValue(i, j, matrix[i, j]);
-end;
-//------------------------------------------------------------------------------
-procedure TLogicalMatrix.SetValue(rowIndex, columnIndex: integer;
-  value: LongBool);
+procedure TLogicalMatrix.SetValueForAbsoluteIndex(const aAbsoluteVectorIndex:
+    integer; const value: LongBool);
 var
-  pp: TProtectedPointer;
   PData: PLongBool;
-  offset: integer;
 begin
-  if (rowIndex < 0) or (rowIndex >= RowCount) then
-    raise EopaRException.Create('Error: row index out of bounds');
-
-  if (columnIndex < 0) or (columnIndex >= ColumnCount) then
-    raise EopaRException.Create('Error: column index out of bounds');
-
-  pp := TProtectedPointer.Create(self);
-  try
-    offset := GetOffset(rowIndex, columnIndex);
-    PData := PLongBool(NativeInt(DataPointer) + offset);
-    PData^ := value;
-  finally
-    pp.Free;
-  end;
+  inherited;
+  PData := TVectorAccessUtility.GetPointerToLogicalInVector(Engine, Handle, aAbsoluteVectorIndex);
+  PData^ := value;
 end;
 
 end.

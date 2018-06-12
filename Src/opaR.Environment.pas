@@ -79,11 +79,9 @@ end;
 //------------------------------------------------------------------------------
 function TREnvironment.GetParent: IREnvironment;
 var
-  sexp: TSEXPREC;
   p: PSEXPREC;
 begin
-  sexp := GetInternalStructure;
-  p := sexp.envsxp.enclos;
+  p := Engine.Rapi.ENCLOS(Handle);
   if p = nil then
     result := nil
   else
@@ -94,7 +92,6 @@ function TREnvironment.GetSymbol(symbolName: string): ISymbolicExpression;
 var
   installedName: PSEXPREC;
   pVar: PSEXPREC;
-  sexp: TSEXPREC;
 begin
   result := nil;
 
@@ -107,8 +104,7 @@ begin
   if TEngineExtension(Engine).CheckUnbound(pVar) then
     raise EopaREvaluationException.CreateFmt('Error: Object %s not found', [QuotedStr(symbolName)]);
 
-  sexp := pVar^;
-  if TSymbolicExpressionType(sexp.sxpinfo.type_) = TSymbolicExpressionType.Promise then
+  if TSymbolicExpressionType(Engine.Rapi.TypeOf(pVar)) = TSymbolicExpressionType.Promise then
     pVar := Engine.Rapi.Eval(pVar, Handle);
 
   result := TSymbolicExpression.Create(Engine, pVar);
@@ -119,14 +115,12 @@ function TREnvironment.GetSymbolNames(
 var
   Ptr: PSEXPREC;
   symbolNames: ICharacterVector;
-  len: integer;
 begin
   Ptr := Engine.Rapi.lsInternal(Handle, includeSpecialFunctions);
 
   symbolNames := TCharacterVector.Create(Engine, Ptr);
-  len := symbolNames.VectorLength;
-  SetLength(result, len);
-  symbolNames.CopyTo(result, len);
+
+  result := symbolNames.ToArray;
 end;
 //------------------------------------------------------------------------------
 procedure TREnvironment.SetSymbol(symbolName: string;

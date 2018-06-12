@@ -55,63 +55,44 @@ uses
 
 //------------------------------------------------------------------------------
 function TSymbol.GetInternal: ISymbolicExpression;
-var
-  sexp: TSEXPREC;
 begin
-  sexp := GetInternalStructure;
-  if sexp.symsxp.internal = TEngineExtension(Engine).NilValue then  { TODO : R.NET checks sexp.symsxp.value??? }
+  if Engine.Rapi.INTERNAL(Handle) = TEngineExtension(Engine).NilValue then
     result := nil
   else
-    result := TSymbolicExpression.Create(Engine, sexp.symsxp.internal);
+    result := TSymbolicExpression.Create(Engine, Engine.Rapi.INTERNAL(Handle));
 end;
-//------------------------------------------------------------------------------
-{
-class function TSymbol.GetOffsetOf(fieldName: string): integer;
-begin
-  // TODO : TSymbol.GetOffsetOf - possibly not needed.
-  result := 0;
-end;
-}
 
 //------------------------------------------------------------------------------
 function TSymbol.GetPrintName: string;
 var
-  sexp: TSEXPREC;
   internalStr: IInternalString;
 begin
-  sexp := GetInternalStructure;
-
-  internalStr := TInternalString.Create(Engine, sexp.symsxp.pname);
+  internalStr := TInternalString.Create(Engine, Engine.Rapi.PrintName(Handle));
   result := internalStr.ToString;
 end;
 //------------------------------------------------------------------------------
 function TSymbol.GetValue: ISymbolicExpression;
-var
-  sexp: TSEXPREC;
 begin
-  sexp := GetInternalStructure;
-  if sexp.symsxp.value = TEngineExtension(Engine).NilValue then
+  if Engine.RApi.SYMVALUE(Handle) = TEngineExtension(Engine).NilValue then
     result := nil
   else
-    result := TSymbolicExpression.Create(Engine, sexp.symsxp.value);
+    result := TSymbolicExpression.Create(Engine, Engine.RApi.SYMVALUE(Handle));
 end;
 //------------------------------------------------------------------------------
 procedure TSymbol.SetPrintName(const Value: string);
 var
-  Ptr: PSEXPREC;
-  sexp: TSEXPREC;
+  PtrName: PSEXPREC;
   internalStr: IInternalString;
 begin
   if Trim(Value) = '' then
-    Ptr := TEngineExtension(Engine).NilValue
+    PtrName := TEngineExtension(Engine).NilValue
   else
   begin
     internalStr := TInternalString.Create(Engine, Value);
-    Ptr := internalStr.Handle;
+    PtrName := internalStr.Handle;
   end;
 
-  sexp := GetInternalStructure;
-  sexp.symsxp.pname := Ptr;
+  Engine.Rapi.SET_PRINTNAME(Handle, PtrName);
 end;
 
 end.

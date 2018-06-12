@@ -33,7 +33,8 @@ uses
 type
   // -- PAnsiChar type is used for UnmanagedType.LPStr. Note that the buffer
   // -- param is a StringBuilder in RDotNet, while prompt is a string.
-  Tblah1 = function(prompt, buffer: PAnsiChar; length: integer; history: LongBool): LongBool; cdecl;
+  Tblah1 = function(prompt: PAnsiChar; out buffer: PAnsiChar; length: integer;
+      history: LongBool): LongBool cdecl;
   Tblah2 = procedure(const buffer: PAnsiChar; length: integer); cdecl;
   Tblah3 = procedure; cdecl;
   Tblah4 = procedure(const msg: PAnsiChar); cdecl;
