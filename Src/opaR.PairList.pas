@@ -160,14 +160,21 @@ begin
 end;
 //------------------------------------------------------------------------------
 function TPairList.TEnumerator.MoveNext: Boolean;
+var
+  curType: integer;
 begin
   result := FIndex < FPairList.Count - 1;
   if result then
   begin
     if FIndex = -1 then
       FCurrentNode := FPairList.Handle
-    else if (FCurrentNode.sxpinfo.type_ <> Ord(TSymbolicExpressionType.Null)) then
-      FCurrentNode := FPairList.Engine.Rapi.CDR_LinkedList(FCurrentNode);
+    else
+    begin
+      curType := FPairList.Engine.Rapi.TypeOf(FCurrentNode);
+      if curType <> Ord(TSymbolicExpressionType.Null) then
+        FCurrentNode := FPairList.Engine.Rapi.CDR_LinkedList(FCurrentNode);
+    end;
+
     Inc(FIndex);
   end;
 end;

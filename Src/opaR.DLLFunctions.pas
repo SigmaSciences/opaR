@@ -890,6 +890,7 @@ end;
 class procedure TRapi.UnloadDLL;
 begin
   FreeLibrary(FdllHandle);
+  FdllHandle := 0;
 end;
 //------------------------------------------------------------------------------
 class procedure TRapi.Unprotect(p: PSEXPREC);

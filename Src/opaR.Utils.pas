@@ -101,33 +101,6 @@ type
 
 {$MINENUMSIZE 1}              // -- Restore the default enum size.
 
-
-  // -- See http://praxis-velthuis.de/rdc/articles/articles-convert.html#propertyindex
-  // -- for details on the bit field implementation.
-  // -- Note that for type_ we're using an integer so will need to cast to TSymbolicExpressionType.
-  Tsxpinfo = packed record
-  private
-    Flags: DWord;
-    {$IFDEF CPUX64}    // -- SizeOf(VECTOR_SEXPREC) in R.NET x64 = 40
-    Pad: array[0..3] of byte;
-    {$ENDIF}
-    function GetBits(const aIndex: Integer): Integer;
-    procedure SetBits(const aIndex: Integer; const aValue: Integer);
-  public
-    property type_: Integer index $0005 read GetBits write SetBits;     // 5 bits at offset 0  (TSymbolicExpressionType)
-    property obj: Integer index $0501 read GetBits write SetBits;       // 1 bit at offset 5 ($05)
-    property named: Integer index $0602 read GetBits write SetBits;     // 2 bits at offset 6 ($06)
-    property gp: Integer index $0810 read GetBits write SetBits;        // 16 bits  at offset 8 ($08)
-    property mark: Integer index $1801 read GetBits write SetBits;      // 1 bit at offset 24 ($18)
-    property debug: Integer index $1901 read GetBits write SetBits;     // 1 bit  at offset 25 ($19)
-    property trace: Integer index $1A01 read GetBits write SetBits;     // 1 bit  at offset 26 ($1A)
-    property spare: Integer index $1B01 read GetBits write SetBits;     // 1 bit  at offset 27 ($1B)
-    property gcgen: Integer index $1C01 read GetBits write SetBits;     // 1 bit  at offset 28 ($1C)
-    property gccls: Integer index $1D03 read GetBits write SetBits;     // 3 bits at offset 29 ($18)
-  end;
-
-
-
 implementation
 
 //------------------------------------------------------------------------------
@@ -150,20 +123,5 @@ begin
           or DWORD(aValue shl Offset);
 end;
 //------------------------------------------------------------------------------
-
-
-
-{ Tsxpinfo }
-
-//------------------------------------------------------------------------------
-function Tsxpinfo.GetBits(const aIndex: Integer): Integer;
-begin
-  result := GetDWordBits(Flags, aIndex);
-end;
-//------------------------------------------------------------------------------
-procedure Tsxpinfo.SetBits(const aIndex, aValue: Integer);
-begin
-  SetDWordBits(Flags, aIndex, aValue);
-end;
 
 end.
