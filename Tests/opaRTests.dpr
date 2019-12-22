@@ -32,7 +32,8 @@ uses
   ListTests in 'ListTests.pas',
   RFunctionTests in 'RFunctionTests.pas',
   S4ClassTests in 'S4ClassTests.pas',
-  S4Test in 'S4Test.pas';
+  S4Test in 'S4Test.pas',
+  OpaR.NoSpring in '..\Src\OpaR.NoSpring.pas';
 
 {$R *.RES}
 

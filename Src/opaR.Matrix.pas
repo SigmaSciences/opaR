@@ -23,7 +23,6 @@ interface
 
 uses
   opaR.SEXPREC,
-  opaR.VECTOR_SEXPREC,
   opaR.Utils,
   opaR.DLLFunctions,
   opaR.SymbolicExpression,
@@ -35,19 +34,22 @@ type
   private
     procedure InitMatrixFast(matrix: TDynMatrix<T>);
     function GetColumnCount: integer;
-    function GetDataPointer: PSEXPREC;
     function GetItemCount: integer;
     function GetRowCount: integer;
-    function GetValueByName(rowName, columnName: string): T; virtual;
-    procedure GetRowAndColumnIndex(rowName, columnName: string; var rowIndex: integer;
+    function GetValueByName(const rowName, columnName: string): T;
+    procedure GetRowAndColumnIndex(const rowName, columnName: string; var rowIndex: integer;
       var columnIndex: integer);
-    procedure SetValueByName(rowName, columnName: string; value: T); virtual;
+    procedure SetValueByName(const rowName, columnName: string; const value: T);
+    function GetValueByIndex(const rowIndex, columnIndex: integer): T;
+    procedure InitMatrixFastDirect(matrix: TDynMatrix<T>);
+    procedure SetValueByIndex(const rowIndex, columnIndex: integer; const value: T);
   protected
+    function GetValueForAbsoluteIndex(const aAbsoluteVectorIndex: integer): T;
+        virtual; abstract;
+    procedure SetValueForAbsoluteIndex(const aAbsoluteVectorIndex: integer; const
+        value: T); virtual; abstract;
     function GetDataSize: integer; virtual; abstract;
-    function GetOffset(rowIndex, columnIndex: integer): integer;
-    function GetValue(rowIndex, columnIndex: integer): T; virtual; abstract;
-    procedure InitMatrixFastDirect(matrix: TDynMatrix<T>); virtual; abstract;
-    procedure SetValue(rowIndex, columnIndex: integer; value: T); virtual; abstract;
+    function GetArrayFast: TDynMatrix<T>;
   public
     constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
     constructor Create(const engine: IREngine;
@@ -55,19 +57,17 @@ type
     constructor Create(const engine: IREngine;
       expressionType: TSymbolicExpressionType; matrix: TDynMatrix<T>); overload;
     function ColumnNames: TArray<string>;
-    function GetArrayFast: TDynMatrix<T>; virtual; abstract;
     function ToArray: TDynMatrix<T>;
     function RowNames: TArray<string>;
     procedure CopyTo(destination: TDynMatrix<T>; rowCount, columnCount: integer;
       sourceRowIndex: integer = 0; sourceColumnIndex: integer = 0;
         destinationRowIndex: integer = 0; destinationColumnIndex: integer = 0);
     property ColumnCount: integer read GetColumnCount;
-    property DataPointer: PSEXPREC read GetDataPointer;
     property DataSize: integer read GetDataSize;
     property ItemCount: integer read GetItemCount;
     property RowCount: integer read GetRowCount;
-    property Values[rowIndex, columnIndex: integer]: T read GetValue write SetValue; default;
-    property Values[rowName, columnName: string]: T read GetValueByName write SetValueByName; default;
+    property ValueByIndex[const rowIndex, columnIndex: integer]: T read GetValueByIndex write SetValueByIndex; default;
+    property ValueByName[const rowName, columnName: string]: T read GetValueByName write SetValueByName;
   end;
 
 implementation
@@ -182,21 +182,23 @@ begin
   Create(engine, expressionType, rowCount, columnCount);
   InitMatrixFast(matrix);
 end;
+
+function TRMatrix<T>.GetArrayFast: TDynMatrix<T>;
+var
+  i: integer;
+  j: integer;
+begin
+  SetLength(result, RowCount, ColumnCount);
+
+  for i := 0 to RowCount - 1 do
+    for j := 0 to ColumnCount - 1 do
+      result[i, j] := GetValueByIndex(i, j);
+end;
+
 //------------------------------------------------------------------------------
 function TRMatrix<T>.GetColumnCount: integer;
 begin
   result := Engine.Rapi.NumCols(Handle);
-end;
-//------------------------------------------------------------------------------
-function TRMatrix<T>.GetDataPointer: PSEXPREC;
-var
-  offset: integer;
-  h: PSEXPREC;
-begin
-  // -- TVECTOR_SEXPREC is the header of the vector, with the actual data behind it.
-  offset := SizeOf(TVECTOR_SEXPREC);
-  h := Handle;
-  result := PSEXPREC(NativeInt(h) + offset);
 end;
 //------------------------------------------------------------------------------
 function TRMatrix<T>.GetItemCount: integer;
@@ -204,13 +206,7 @@ begin
   result := RowCount * ColumnCount;
 end;
 //------------------------------------------------------------------------------
-function TRMatrix<T>.GetOffset(rowIndex, columnIndex: integer): integer;
-begin
-  { TODO : Depends on whether the matrix is row or column-major? }
-  result := DataSize * (columnIndex * RowCount + rowIndex);
-end;
-//------------------------------------------------------------------------------
-procedure TRMatrix<T>.GetRowAndColumnIndex(rowName, columnName: string;
+procedure TRMatrix<T>.GetRowAndColumnIndex(const rowName, columnName: string;
   var rowIndex, columnIndex: integer);
 var
   rowNamesArray: TArray<string>;
@@ -256,15 +252,25 @@ function TRMatrix<T>.GetRowCount: integer;
 begin
   result := Engine.Rapi.NumRows(Handle);
 end;
+
+function TRMatrix<T>.GetValueByIndex(const rowIndex, columnIndex: integer): T;
+var
+  absoluteIndex: integer;
+begin
+  // R matices are stored by row
+  absoluteIndex := columnIndex * RowCount + rowIndex;
+  Result := GetValueForAbsoluteIndex(absoluteIndex);
+end;
+
 //------------------------------------------------------------------------------
-function TRMatrix<T>.GetValueByName(rowName, columnName: string): T;
+function TRMatrix<T>.GetValueByName(const rowName, columnName: string): T;
 var
   rowIndex: integer;
   columnIndex: integer;
 begin
   GetRowAndColumnIndex(rowName, columnName, rowIndex, columnIndex);
   if (rowIndex > -1) and (columnIndex > -1) then
-    GetValue(rowIndex, columnIndex);
+    result := GetValueByIndex(rowIndex, columnIndex);
 end;
 //------------------------------------------------------------------------------
 procedure TRMatrix<T>.InitMatrixFast(matrix: TDynMatrix<T>);
@@ -278,6 +284,27 @@ begin
     pp.Free;
   end;
 end;
+
+procedure TRMatrix<T>.InitMatrixFastDirect(matrix: TDynMatrix<T>);
+var
+  numRows: integer;
+  numCols: integer;
+  i: integer;
+  j: integer;
+begin
+  numRows := Length(matrix);
+  if numRows <= 0 then
+    raise EopaRException.Create('Error: Matrix rowCount must be greater than zero');
+
+  // -- Default memory layout for R is column-major, while Delphi is row-major,
+  // -- so can't copy blocks.
+  { TODO : An R matrix can be created as row-major, but need to test for this before copying blocks. }
+  numCols := Length(matrix[0]);
+  for i := 0 to numRows - 1 do
+    for j := 0 to numCols - 1 do
+      SetValueByIndex(i, j, matrix[i, j]);
+end;
+
 //------------------------------------------------------------------------------
 function TRMatrix<T>.RowNames: TArray<string>;
 var
@@ -302,15 +329,26 @@ begin
   for i := 0 to vecLength - 1 do
     result[i] := rowNames[i];
 end;
+
+procedure TRMatrix<T>.SetValueByIndex(const rowIndex, columnIndex: integer;
+    const value: T);
+var
+  absoluteIndex: integer;
+begin
+  // R matices are stored by row
+  absoluteIndex := columnIndex * RowCount + rowIndex;
+  SetValueForAbsoluteIndex(absoluteIndex, value);
+end;
+
 //------------------------------------------------------------------------------
-procedure TRMatrix<T>.SetValueByName(rowName, columnName: string; value: T);
+procedure TRMatrix<T>.SetValueByName(const rowName, columnName: string; const value: T);
 var
   rowIndex: integer;
   columnIndex: integer;
 begin
   GetRowAndColumnIndex(rowName, columnName, rowIndex, columnIndex);
   if (rowIndex > -1) and (columnIndex > -1) then
-    SetValue(rowIndex, columnIndex, value);
+    SetValueByIndex(rowIndex, columnIndex, value);
 end;
 //------------------------------------------------------------------------------
 function TRMatrix<T>.ToArray: TDynMatrix<T>;

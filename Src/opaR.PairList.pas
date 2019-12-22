@@ -36,7 +36,6 @@ interface
 uses
   Generics.Tuples,    // from https://github.com/malcolmgroves/generics.tuples
 
-  opaR.VectorUtils,
   opaR.DLLFunctions,
   opaR.Utils,
   opaR.SEXPREC,
@@ -52,7 +51,7 @@ type
       private
         FIndex: integer;
         FPairList: TPairList;
-        FCurrentNode: TSEXPREC;
+        FCurrentNode: PSEXPREC;
         function GetCurrent: ISymbol;
       public
         constructor Create(const pairList: TPairList);
@@ -86,7 +85,7 @@ end;
 //------------------------------------------------------------------------------
 function TPairList.First: ISymbol;
 begin
-  result := TSymbol.Create(Engine, Handle.listsxp.tagval);
+  result := TSymbol.Create(Engine, Engine.Rapi.TAG_LinkedList(Handle));
 end;
 //------------------------------------------------------------------------------
 ///	<summary>
@@ -108,16 +107,20 @@ end;
 function TPairList.ToTupleArray: TArray<ITuple<ISymbol, ISymbolicExpression>>;
 var
   i: integer;
-  expr: TSEXPREC;
+  expr: PSEXPREC;
+  newSymbol: TSymbol;
+  newExpresson: TSymbolicExpression;
 begin
   SetLength(result, self.Count);
-  expr := Handle.listsxp.cdrval^;
-  result[0] := TTuple<ISymbol, ISymbolicExpression>.Create(TSymbol.Create(Engine, Handle.listsxp.tagval), TSymbolicExpression.Create(Engine, Handle.listsxp.carval));
+  expr := Handle;
 
-  for i := 1 to self.Count - 1 do
+  for i := 0 to self.Count - 1 do
   begin
-    result[i] := TTuple<ISymbol, ISymbolicExpression>.Create(TSymbol.Create(Engine, expr.listsxp.tagval), TSymbolicExpression.Create(Engine, expr.listsxp.carval));
-    expr := expr.listsxp.cdrval^;
+    newSymbol := TSymbol.Create(Engine, Engine.Rapi.TAG_LinkedList(expr));
+    newExpresson := TSymbolicExpression.Create(Engine, Engine.Rapi.CAR_LinkedList(expr));
+    result[i] := TTuple<ISymbol, ISymbolicExpression>.Create(newSymbol, newExpresson);
+
+    expr := Engine.Rapi.CDR_LinkedList(expr);
   end;
 end;
 //------------------------------------------------------------------------------
@@ -127,16 +130,16 @@ end;
 function TPairList.ToArray: TArray<ISymbol>;
 var
   i: integer;
-  expr: TSEXPREC;
+  expr: PSEXPREC;
 begin
   SetLength(result, self.Count);
-  expr := Handle.listsxp.cdrval^;
-  result[0] := TSymbol.Create(Engine, Handle.listsxp.tagval);
+  expr := Handle;
+  result[0] := TSymbol.Create(Engine, Engine.Rapi.TAG_LinkedList(expr));
 
   for i := 1 to self.Count - 1 do
   begin
-    result[i] := TSymbol.Create(Engine, expr.listsxp.tagval);
-    expr := expr.listsxp.cdrval^;
+    result[i] := TSymbol.Create(Engine, Engine.Rapi.TAG_LinkedList(expr));
+    expr := Engine.Rapi.CDR_LinkedList(expr);
   end;
 end;
 
@@ -153,20 +156,26 @@ end;
 //------------------------------------------------------------------------------
 function TPairList.TEnumerator.GetCurrent: ISymbol;
 begin
-  result := TSymbol.Create(FPairList.Engine, FCurrentNode.listsxp.tagval);
+  result := TSymbol.Create(FPairList.Engine, FPairList.Engine.Rapi.TAG_LinkedList(FCurrentNode));
 end;
 //------------------------------------------------------------------------------
 function TPairList.TEnumerator.MoveNext: Boolean;
+var
+  curType: integer;
 begin
   result := FIndex < FPairList.Count - 1;
   if result then
   begin
     if FIndex = -1 then
-      FCurrentNode := FPairList.Handle^
-    else if (FCurrentNode.sxpinfo.type_ <> Ord(TSymbolicExpressionType.Null)) then
-      FCurrentNode := FCurrentNode.listsxp.cdrval^;
+      FCurrentNode := FPairList.Handle
+    else
+    begin
+      curType := FPairList.Engine.Rapi.TypeOf(FCurrentNode);
+      if curType <> Ord(TSymbolicExpressionType.Null) then
+        FCurrentNode := FPairList.Engine.Rapi.CDR_LinkedList(FCurrentNode);
+    end;
+
     Inc(FIndex);
-    //Ptr := FCurrentNode.listsxp.carval;
   end;
 end;
 

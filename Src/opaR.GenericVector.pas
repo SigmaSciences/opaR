@@ -28,10 +28,11 @@ TGenericVector wraps the R list type. Note that this is not the same as a PairLi
 interface
 
 uses
+  {$IFNDEF NO_SPRING}
   Spring.Collections,
+  {$ENDIF}
 
   opaR.SEXPREC,
-  opaR.VECTOR_SEXPREC,
   opaR.Utils,
   opaR.DLLFunctions,
   opaR.Vector,
@@ -42,21 +43,23 @@ uses
   opaR.CharacterVector;
 
 type
-  TGenericVector = class(TRVector<ISymbolicExpression>, IGenericVector)
+  TGenericVector = class(TRObjectVector<ISymbolicExpression>, IGenericVector)
   protected
     function GetDataSize: integer; override;
-    function GetValue(ix: integer): ISymbolicExpression; override;
-    procedure SetValue(ix: integer; value: ISymbolicExpression); override;
+    function ConvertPSEXPRECToValue(const aValue: PSEXPREC): ISymbolicExpression;
+        override;
+    function ConvertValueToPSEXPREC(const aValue: ISymbolicExpression): PSEXPREC;
+        override;
   public
     constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
     constructor Create(const engine: IREngine; vecLength: integer); overload;
+    {$IFNDEF NO_SPRING}
     constructor Create(const engine: IREngine; const vector: IEnumerable<TSymbolicExpression>); overload;
+    {$ENDIF}
     constructor Create(const engine: IREngine; const vector: TArray<ISymbolicExpression>); overload;
-    function GetArrayFast: TArray<ISymbolicExpression>; override;
     function ToPairlist: IPairlist;
     procedure SetNames(const names: TArray<string>); overload;
     procedure SetNames(const names: ICharacterVector); overload;
-    procedure SetVectorDirect(const values: TArray<ISymbolicExpression>); override;
   end;
 
 implementation
@@ -77,6 +80,7 @@ begin
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
+{$IFNDEF NO_SPRING}
 constructor TGenericVector.Create(const engine: IREngine;
   const vector: IEnumerable<TSymbolicExpression>);
 var
@@ -99,11 +103,11 @@ begin
     Inc(ix);
   end;
 end;
+{$ENDIF}
 //------------------------------------------------------------------------------
 constructor TGenericVector.Create(const engine: IREngine;
   const vector: TArray<ISymbolicExpression>);
 var
-  ix: integer;
   len: integer;
   pExpr: PSEXPREC;
 begin
@@ -115,43 +119,31 @@ begin
   Create(engine, pExpr);
 
   // -- Now copy the array data.
-  for ix := 0 to len - 1 do
-    SetValue(ix, vector[ix]);
+  SetVectorDirect(vector);
 end;
-//------------------------------------------------------------------------------
-function TGenericVector.GetArrayFast: TArray<ISymbolicExpression>;
-var
-  i: integer;
+
+function TGenericVector.ConvertPSEXPRECToValue(const aValue: PSEXPREC):
+    ISymbolicExpression;
 begin
-  SetLength(result, VectorLength);
-  for i := 0 to VectorLength - 1 do
-    result[i] := GetValue(i);
+  if (aValue = nil) or (aValue = TEngineExtension(Engine).NilValue) then
+    result := nil
+  else
+    result := TSymbolicExpression.Create(Engine, aValue);
 end;
+
+function TGenericVector.ConvertValueToPSEXPREC(const aValue:
+    ISymbolicExpression): PSEXPREC;
+begin
+  if aValue = nil then
+    result := TEngineExtension(Engine).NilValue
+  else
+    result := aValue.Handle;
+end;
+
 //------------------------------------------------------------------------------
 function TGenericVector.GetDataSize: integer;
 begin
   result := SizeOf(PSEXPREC);
-end;
-//------------------------------------------------------------------------------
-function TGenericVector.GetValue(ix: integer): ISymbolicExpression;
-var
-  PPtr: PSEXPREC;
-  pp: TProtectedPointer;
-begin
-  if (ix < 0) or (ix >= VectorLength) then
-    raise EopaRException.Create('Error: Vector index out of bounds');
-
-  pp := TProtectedPointer.Create(self);
-  try
-    PPtr := PSEXPREC(PPointerArray(DataPointer)^[ix]);
-
-    if (PPtr = nil) or (PPtr = TEngineExtension(Engine).NilValue) then
-      result := nil
-    else
-      result := TSymbolicExpression.Create(Engine, PPtr);
-  finally
-    pp.Free;
-  end;
 end;
 //------------------------------------------------------------------------------
 procedure TGenericVector.SetNames(const names: TArray<string>);
@@ -173,38 +165,6 @@ begin
   p := TEngineExtension(Engine).GetPredefinedSymbolPtr('R_NamesSymbol');
   namesSymbol := TSymbolicExpression.Create(Engine, p);
   SetAttribute(namesSymbol, names as ISymbolicExpression);
-end;
-//------------------------------------------------------------------------------
-//-- Note that TGenericVector does not get involved in any lifetime management
-//-- of TSymbolicExpression objects - in SetValue we just copy the pointer
-//-- value to the internal R vector.
-procedure TGenericVector.SetValue(ix: integer; value: ISymbolicExpression);
-var
-  PData: PSEXPREC;
-  pp: TProtectedPointer;
-begin
-  if (ix < 0) or (ix >= VectorLength) then
-    raise EopaRException.Create('Error: Vector index out of bounds');
-
-  pp := TProtectedPointer.Create(self);
-  try
-    if value = nil then
-      PData := TEngineExtension(Engine).NilValue
-    else
-      PData := value.Handle;
-
-    PPointerArray(DataPointer)^[ix] := PData;
-  finally
-    pp.Free;
-  end;
-end;
-//------------------------------------------------------------------------------
-procedure TGenericVector.SetVectorDirect(const values: TArray<ISymbolicExpression>);
-var
-  i: integer;
-begin
-  for i := 0 to VectorLength - 1 do
-    SetValue(i, values[i]);
 end;
 //------------------------------------------------------------------------------
 function TGenericVector.ToPairlist: IPairlist;

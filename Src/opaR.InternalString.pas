@@ -33,7 +33,6 @@ Since there's no "null" for Delphi strings just implement ToString.
 interface
 
 uses
-  opaR.VECTOR_SEXPREC,
   opaR.SEXPREC,
   opaR.SymbolicExpression,
   opaR.Interfaces,
@@ -68,8 +67,11 @@ begin
 end;
 //------------------------------------------------------------------------------
 function TInternalString.ToString: string;
+var
+  charP: PAnsiChar;
 begin
-  result := String(AnsiString(PAnsiChar(NativeUInt(Handle) + SizeOf(TVECTOR_SEXPREC))));
+  charP := Engine.Rapi.Char(Handle);
+  result := String(AnsiString(charP));
 end;
 
 end.

@@ -44,8 +44,12 @@ uses
   System.Types,
   System.RegularExpressions,
 
+  {$IFNDEF NO_SPRING}
   Spring.Collections,
   Spring.Collections.Lists,
+  {$ELSE}
+  OpaR.NoSpring,
+  {$ENDIF}
 
   opaR.SEXPREC,
   opaR.Utils,
@@ -169,9 +173,11 @@ function TEngineExtension.GetAnsiString(symbolName: string): AnsiString;
 var
   ptr: pointer;
 begin
-  //ptr := GetProcAddress(FEngine.Handle, PAnsiChar(AnsiString(symbolName)));
   ptr := FEngine.Rapi.GetRProcAddress(PAnsiChar(AnsiString(symbolName)));
-  result := AnsiString(PAnsiChar(ptr));
+  if Assigned(ptr) then
+    result := AnsiString(PAnsiChar(ptr))
+  else
+    result := '';
 end;
 //------------------------------------------------------------------------------
 function TEngineExtension.LastErrorMessage: string;
@@ -202,7 +208,8 @@ begin
 
     errMessage := vector.First;
 
-    if errMessage.TryEvaluate(GlobalEnvironment, expr) then
+
+    if Assigned(errMessage) and errMessage.TryEvaluate(GlobalEnvironment, expr) then
     begin
       charVec := (expr as TSymbolicExpression).AsCharacter;
 
@@ -215,7 +222,8 @@ begin
       result := msgs[0];
     end
     else
-      raise EopaRException.Create('Unable to retrieve an R error message. Evaluating "geterrmessage()" fails. The R engine is not in a working state.');
+      raise EopaRException.Create('Unable to retrieve an R error message. ' +
+        'Evaluating "geterrmessage()" fails. The R engine is not in a working state.');
   //end;
 end;
 //------------------------------------------------------------------------------
@@ -354,17 +362,23 @@ begin
 
         pp2 := TProtectedPointer.Create(vector as ISymbolicExpression);
         try
-          if vector.VectorLength = 0 then
-            result := nil;
+          result := nil;
+          if vector.VectorLength > 0 then
+          begin
+            ge := GlobalEnvironment;
+            vec := vector.First;
 
-          ge := GlobalEnvironment;
-          vec := vector.First;
+            if Assigned(vec) then
+            begin
+              if not vec.TryEvaluate(ge, result) then
+                raise EopaREvaluationException.Create(LastErrorMessage);
 
-          if not vec.TryEvaluate(ge, result) then
-            raise EopaREvaluationException.Create(LastErrorMessage);
-
-          if (FEngine.AutoPrint) and (not result.IsInvalid) and (FEngine.GetVisible) then
-            FEngine.Rapi.PrintValue(result.Handle);
+              if (FEngine.AutoPrint) and (not result.IsInvalid) and (FEngine.GetVisible) then
+                FEngine.Rapi.PrintValue(result.Handle);
+            end
+            else
+              raise EopaREvaluationException.Create('Failed to create a valid expression vector');
+          end;
         finally
           pp2.Free;
         end;

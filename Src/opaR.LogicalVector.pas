@@ -26,7 +26,9 @@ uses
   Winapi.Windows,
   {$ENDIF}
 
-  Spring.Collections,
+  {$IFNDEF NO_SPRING}
+    Spring.Collections,
+  {$ENDIF}
 
   opaR.SEXPREC,
   opaR.Utils,
@@ -39,22 +41,26 @@ type
   TLogicalVector = class(TRVector<LongBool>, ILogicalVector)
   protected
     function GetDataSize: integer; override;
-    function GetValue(ix: integer): LongBool; override;
-    procedure SetValue(ix: integer; value: LongBool); override;
+    function GetValueByIndex(const aIndex: integer): LongBool; override;
+    procedure PopulateArrayFastInternal(aArrayToPopulate: TArray<LongBool>);
+        override;
+    procedure SetValueByIndex(const aIndex: integer; const aValue: LongBool);
+        override;
+    procedure SetVectorDirect(const aNewValues: TArray<LongBool>); override;
   public
     constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
     constructor Create(const engine: IREngine; vecLength: integer); overload;
-    constructor Create(const engine: IREngine; const vector: IEnumerable<LongBool>); overload;
+    {$IFNDEF NO_SPRING}
+      constructor Create(const engine: IREngine; const vector: IEnumerable<LongBool>); overload;
+    {$ENDIF}
     constructor Create(const engine: IREngine; const vector: TArray<LongBool>); overload;
-    function GetArrayFast: TArray<LongBool>; override;
-    procedure SetVectorDirect(const values: TArray<LongBool>); override;
   end;
 
 
 implementation
 
 uses
-  opaR.ProtectedPointer;
+  opaR.ProtectedPointer, opaR.VectorUtils;
 
 { TLogicalVector }
 
@@ -65,10 +71,12 @@ begin
   inherited Create(engine, TSymbolicExpressionType.LogicalVector, vecLength);
 end;
 //------------------------------------------------------------------------------
-constructor TLogicalVector.Create(const engine: IREngine; const vector: IEnumerable<LongBool>);
-begin
-  inherited Create(engine, TSymbolicExpressionType.LogicalVector, vector);
-end;
+{$IFNDEF NO_SPRING}
+  constructor TLogicalVector.Create(const engine: IREngine; const vector: IEnumerable<LongBool>);
+  begin
+    inherited Create(engine, TSymbolicExpressionType.LogicalVector, vector);
+  end;
+{$ENDIF}
 //------------------------------------------------------------------------------
 constructor TLogicalVector.Create(const engine: IREngine; const vector: TArray<LongBool>);
 var
@@ -80,7 +88,7 @@ begin
   Create(engine, pExpr);
 
   // -- Now copy the array data.
-  CopyMemory(DataPointer, PLongBool(vector), Length(vector) * DataSize);
+  SetVector(vector);
 end;
 //------------------------------------------------------------------------------
 constructor TLogicalVector.Create(const engine: IREngine; pExpr: PSEXPREC);
@@ -88,59 +96,50 @@ begin
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
-function TLogicalVector.GetArrayFast: TArray<LongBool>;
-begin
-  SetLength(result, self.VectorLength);
-  CopyMemory(PLongBool(result), DataPointer, self.VectorLength * DataSize);
-end;
-//------------------------------------------------------------------------------
 function TLogicalVector.GetDataSize: integer;
 begin
   result := SizeOf(LongBool);
 end;
 //------------------------------------------------------------------------------
-function TLogicalVector.GetValue(ix: integer): LongBool;
-var
-  pp: TProtectedPointer;
-  PData: PLongBool;
-  offset: integer;
+function TLogicalVector.GetValueByIndex(const aIndex: integer): LongBool;
 begin
-  if (ix < 0) or (ix >= VectorLength) then
+  if (aIndex < 0) or (aIndex >= VectorLength) then
     raise EopaRException.Create('Error: Vector index out of bounds');
 
-  pp := TProtectedPointer.Create(self);
-  try
-    offset := GetOffset(ix);
-    PData := PLongBool(NativeInt(DataPointer) + offset);
-    result := PData^;
-  finally
-    pp.Free;
-  end;
+  result := TVectorAccessUtility.GetPointerToLogicalInVector(Engine, Handle, aIndex)^;
 end;
-//------------------------------------------------------------------------------
-procedure TLogicalVector.SetValue(ix: integer; value: LongBool);
+
+procedure TLogicalVector.PopulateArrayFastInternal(aArrayToPopulate:
+    TArray<LongBool>);
 var
-  pp: TProtectedPointer;
   PData: PLongBool;
-  offset: integer;
+  PSource: PLongBool;
 begin
-  if (ix < 0) or (ix >= VectorLength) then
+  inherited;
+  PData := @(aArrayToPopulate[0]);
+  PSource := TVectorAccessUtility.GetPointerToLogicalInVector(Engine, Handle, 0);
+  CopyMemory(PData, PSource, Length(aArrayToPopulate) * DataSize);
+end;
+
+//------------------------------------------------------------------------------
+procedure TLogicalVector.SetValueByIndex(const aIndex: integer; const aValue:
+    LongBool);
+begin
+  if (aIndex < 0) or (aIndex >= VectorLength) then
     raise EopaRException.Create('Error: Vector index out of bounds');
 
-  pp := TProtectedPointer.Create(self);
-  try
-    offset := GetOffset(ix);
-    PData := PLongBool(NativeInt(DataPointer) + offset);
-    PData^ := value;
-  finally
-    pp.Free;
-  end;
+  TVectorAccessUtility.GetPointerToLogicalInVector(Engine, Handle, aIndex)^ := aValue;
 end;
-//------------------------------------------------------------------------------
-procedure TLogicalVector.SetVectorDirect(const values: TArray<LongBool>);
+
+procedure TLogicalVector.SetVectorDirect(const aNewValues: TArray<LongBool>);
+var
+  PData: PLongBool;
+  PSource: PLongBool;
 begin
-  // -- Delphi, .NET and R all use contiguous memory blocks for 1D arrays.
-  CopyMemory(DataPointer, PLongBool(values), Length(values) * DataSize);
+  inherited;
+  PData := TVectorAccessUtility.GetPointerToLogicalInVector(Engine, Handle, 0);
+  PSource := @(aNewValues[0]);
+  CopyMemory(PData, PSource, Length(aNewValues) * DataSize);
 end;
 
 end.

@@ -6,7 +6,11 @@ uses
   System.SysUtils,
   TestFramework,
 
-  Spring.Collections,
+  {$IFNDEF NO_SPRING}
+    Spring.Collections,
+  {$ELSE}
+    opaR.NoSpring,
+  {$ENDIF}
 
   opaR.TestUtils,
   opaR.Engine,
@@ -88,7 +92,7 @@ var
   s4: IS4Object;
   test: string;
   foo: string;
-  vec: IIntegerVector;
+
 begin
   test := QuotedStr('testclass');
   foo := QuotedStr('s4');

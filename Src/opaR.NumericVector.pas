@@ -27,7 +27,9 @@ uses
   {$ENDIF}
   System.Types,
 
-  Spring.Collections,
+  {$IFNDEF NO_SPRING}
+    Spring.Collections,
+  {$ENDIF}
 
   opaR.Interfaces,
   opaR.SEXPREC,
@@ -41,20 +43,25 @@ type
   TNumericVector = class(TRVector<double>, INumericVector)
   protected
     function GetDataSize: integer; override;
-    function GetValue(ix: integer): double; override;
-    procedure SetValue(ix: integer; value: double); override;
+    function GetValueByIndex(const aIndex: integer): double; override;
+    procedure PopulateArrayFastInternal(aArrayToPopulate: TArray<Double>); override;
+    procedure SetValueByIndex(const aIndex: integer; const aValue: double);
+        override;
+    procedure SetVectorDirect(const aNewValues: TArray<double>); override;
   public
     constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
     constructor Create(const engine: IREngine; vecLength: integer); overload;
-    constructor Create(const engine: IREngine; const vector: IEnumerable<double>); overload;
+    {$IFNDEF NO_SPRING}
+      constructor Create(const engine: IREngine; const vector: IEnumerable<double>); overload;
+    {$ENDIF}
     constructor Create(const engine: IREngine; const vector: TArray<double>); overload;
-    function GetArrayFast: TArray<double>; override;
-    procedure CopyTo(const destination: TArray<double>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); //override;
-    procedure SetVectorDirect(const values: TArray<double>); override;
   end;
 
 
 implementation
+
+uses
+  opaR.VectorUtils;
 
 
 { TNumericVector }
@@ -72,12 +79,14 @@ begin
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
+{$IFNDEF NO_SPRING}
 constructor TNumericVector.Create(const engine: IREngine; const vector: IEnumerable<double>);
 begin
   // -- The base constructor calls SetVector(vector.ToArray), which in turn
   // -- calls SetVectorDirect (implemented in this class).
   inherited Create(engine, TSymbolicExpressionType.NumericVector, vector);
 end;
+{$ENDIF}
 //------------------------------------------------------------------------------
 constructor TNumericVector.Create(const engine: IREngine; const vector: TArray<double>);
 var
@@ -93,13 +102,7 @@ begin
   Create(engine, pExpr);
 
   // -- Now copy the array data.
-  CopyMemory(DataPointer, PDouble(vector), Length(vector) * DataSize);
-end;
-//------------------------------------------------------------------------------
-function TNumericVector.GetArrayFast: TArray<double>;
-begin
-  SetLength(result, self.VectorLength);
-  CopyMemory(PDouble(result), DataPointer, self.VectorLength * DataSize);
+  SetVector(vector);
 end;
 //------------------------------------------------------------------------------
 function TNumericVector.GetDataSize: integer;
@@ -107,73 +110,51 @@ begin
   result := SizeOf(double);
 end;
 //------------------------------------------------------------------------------
-function TNumericVector.GetValue(ix: integer): double;
+function TNumericVector.GetValueByIndex(const aIndex: integer): double;
 var
-  pp: TProtectedPointer;
   PData: PDouble;
-  offset: integer;
 begin
-  if (ix < 0) or (ix >= VectorLength) then
+  if (aIndex < 0) or (aIndex >= VectorLength) then
     raise EopaRException.Create('Error: Vector index out of bounds');
 
-  pp := TProtectedPointer.Create(self);
-  try
-    offset := GetOffset(ix);
-    PData := PDouble(NativeInt(DataPointer) + offset);
-    result := PData^;
-  finally
-    pp.Free;
-  end;
+  PData := TVectorAccessUtility.GetPointerToRealInVector(Engine, Handle, aIndex);
+  result := PData^;
 end;
-//------------------------------------------------------------------------------
-procedure TNumericVector.SetValue(ix: integer; value: double);
+
+procedure TNumericVector.PopulateArrayFastInternal(aArrayToPopulate:
+    TArray<Double>);
 var
-  pp: TProtectedPointer;
   PData: PDouble;
-  offset: integer;
+  PSource: PDouble;
 begin
-  if (ix < 0) or (ix >= VectorLength) then
+  inherited;
+  PData := @(aArrayToPopulate[0]);
+  PSource := TVectorAccessUtility.GetPointerToRealInVector(Engine, Handle, 0);
+  CopyMemory(PData, PSource, Length(aArrayToPopulate) * DataSize);
+end;
+
+//------------------------------------------------------------------------------
+procedure TNumericVector.SetValueByIndex(const aIndex: integer; const aValue:
+    double);
+var
+  PData: PDouble;
+begin
+  if (aIndex < 0) or (aIndex >= VectorLength) then
     raise EopaRException.Create('Error: Vector index out of bounds');
 
-  pp := TProtectedPointer.Create(self);
-  try
-    offset := GetOffset(ix);
-    PData := PDouble(NativeInt(DataPointer) + offset);
-    PData^ := value;
-  finally
-    pp.Free;
-  end;
+  PData := TVectorAccessUtility.GetPointerToRealInVector(Engine, Handle, aIndex);
+  PData^ := aValue;
 end;
-//------------------------------------------------------------------------------
-procedure TNumericVector.SetVectorDirect(const values: TArray<double>);
-begin
-  // -- Delphi, .NET and R all use contiguous memory blocks for 1D arrays.
-  CopyMemory(DataPointer, PDouble(values), Length(values) * DataSize);
-end;
-//------------------------------------------------------------------------------
-procedure TNumericVector.CopyTo(const destination: TArray<double>; copyCount,
-  sourceIndex, destinationIndex: integer);
+
+procedure TNumericVector.SetVectorDirect(const aNewValues: TArray<double>);
 var
-  offset: integer;
   PData: PDouble;
-  PDestination: PDouble;
+  PSource: PDouble;
 begin
-  if Length(destination) = 0 then
-    raise EopaRException.Create('Error: Destination array cannot be nil');
-
-  if (copyCount <= 0) then
-    raise EopaRException.Create('Error: Number of elements to copy must be > 0');
-
-  if (sourceIndex < 0) or (VectorLength < sourceIndex + copyCount) then
-    raise EopaRException.Create('Error: Source array index out of bounds');
-
-  if (destinationIndex < 0) or (Length(destination) < destinationIndex + copyCount) then
-    raise EopaRException.Create('Error: Destination array index out of bounds');
-
-  offset := GetOffset(sourceIndex);
-  PData := PDouble(NativeInt(DataPointer) + offset);
-  PDestination := PDouble(NativeInt(PDouble(destination)) + destinationIndex * SizeOf(double));
-  CopyMemory(PDestination, PData, copyCount * DataSize);
+  inherited;
+  PData := TVectorAccessUtility.GetPointerToRealInVector(Engine, Handle, 0);
+  PSource := @(aNewValues[0]);
+  CopyMemory(PData, PSource, Length(aNewValues) * DataSize);
 end;
 
 end.

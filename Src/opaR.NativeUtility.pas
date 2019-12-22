@@ -51,245 +51,305 @@ type
     Build: integer;
     constructor Create(mjr, mnr, bld: integer); overload;
     constructor Create(versionStr: string); overload;
-    function IsGreaterThan(testInfo: TFileVersionInfo): boolean;
-    function IsLessThan(testInfo: TFileVersionInfo): boolean;
+    function IsGreaterThan(const aTestInfo: TFileVersionInfo): boolean;
+    function IsLessThan(const aTestInfo: TFileVersionInfo): boolean;
+    function IsEqualTo(const aTestInfo: TFileVersionInfo): boolean;
+  end;
+  
+  TREnvironmentPaths = class
+  strict private
+    FRHome: string;
+    FRLibraryDirectory: string;
+    FLogger: TStringList;
+    procedure FindRPathFromRHomeWindows;
+    function GetRCoreRegistryKeyWin32: TRegKey;
+    function FindInstallationPathFromRegistry(const aRegistryKey: TRegKey): string;
+    function FindNewestRInstallationFromRegistry(const aRegistryKey: TRegKey):
+        string;
+    function TryToFindRHomeFromEnvironmentVariables: boolean;
+    procedure FindRHomeFromSystemRegistry;
+    procedure GetRhomeWindows;
+    procedure FindRHomeValue;
+    procedure FindRLibraryFilePathFromRHome;
+    procedure ClearSavedEnvironmentPaths;
+    procedure SetRHomeEnvironmentVariable;
+    procedure AddRLibraryPathToPathEnvVariable;
+    procedure SetEnvironmentVariables;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure FindRInstallPathAndSetEnvVariables(const aDefaultRHomeValue: string =
+        '');
+    procedure GetLoggerText(const aStringsToPopulate: TStrings);
+    function RLibraryFileName: string;
+    property RHome: string read FRHome;
+    property RLibraryDirectory: string read FRLibraryDirectory;
   end;
 
-  TNativeUtility = class
-  private
-    class var FLogger: TStringList;
-    class procedure CheckPlatformWin32;
-    class procedure FindRPaths(var path: string; var homeDir: string; logger: TStringList); overload;
-    class procedure SetenvPrepend(path: string; envVarName: string = 'PATH');
-    class procedure WriteToLogger(output: string; logger: TStringList);
-    class function ConstructRPath(homeDir: string): string;
-    //class function FileVersionInfoFromString(versionStr: string): TFileVersionInfo;
-    class function FindRPathWindows(homeDir: string): string;
-    class function GetRCoreRegistryKeyWin32(logger: TStringList): TRegKey;
-    class function GetRhomeWin32NT(logger: TStringList): string;
-    class function GetRInstallPathFromRCoreRegKey(key: TRegKey; logger: TStringList): string;
-    class function PrependToEnv(path: string; envVarName: string = 'PATH'): string;
-  public
-    class function FindRHome(path: string = ''; logger: TStringList = nil): string;
-    class function FindRPathFromRegistry(logger: TStringList = nil): string;
-    class function FindRPath(homeDir: string = ''): string;
-    class function FindRPaths(var path: string; var homeDir: string): string; overload;
-    class function GetRLibraryFileName: string;
-    class function GetRVersionFromRegistry(logger: TStringList = nil): TFileVersionInfo;
-    class procedure Initialize;
-    class procedure Finalize;
-    class procedure SetEnvironmentVariables(path: string = ''; homeDir: string = '');
-  end;
+function REnvironmentPaths: TREnvironmentPaths;
 
 implementation
 
+uses
+  System.RegularExpressions;
+
 const
-  installPathKey = 'InstallPath';
-  currentVersionKey = 'Current Version';
+  INSTALLPATH_KEY = 'InstallPath';
+  R_CORE_REGISTRY_PATH = 'SOFTWARE\R-core\';
+  R_HOME_ENVIRONMENT_VARIABLE = 'R_HOME';
+  VERSION_NUMBER_REGEX = '^\d+\.\d+\.\d+$';
 
-
-{ TNativeUtility }
-
-//------------------------------------------------------------------------------
-class procedure TNativeUtility.CheckPlatformWin32;
-begin
-  if TOSVersion.Platform <> pfWindows then
-    raise ENotSupportedException.Create('This method is supported only on the Win32NT platform');
-end;
-//------------------------------------------------------------------------------
-class function TNativeUtility.ConstructRPath(homeDir: string): string;
 var
-  path: string;
-  version: TFileVersionInfo;
-  testInfo: TFileVersionInfo;
-begin
-  case TOSVersion.Platform of
-    pfWindows: begin
-      path := TPath.Combine(homeDir, 'bin');
-      version := GetRVersionFromRegistry;
+  glREnvironmentPaths: TREnvironmentPaths = nil;
 
-      if version.IsLessThan(testInfo.Create(2, 12, 0)) then
-        result := path
-      else
-        {$IFDEF CPUX64}
-        result := TPath.Combine(path, 'x64');
-        {$ELSE}
-        result := TPath.Combine(path, 'i386');
-        {$ENDIF}
-    end;
-  end;
+function REnvironmentPaths: TREnvironmentPaths;
+begin
+  if not Assigned(glREnvironmentPaths) then
+    glREnvironmentPaths := TREnvironmentPaths.Create;
+
+  Result := glREnvironmentPaths;
 end;
-//------------------------------------------------------------------------------
-///	<summary>
-///	FileVersionInfoFromString assumes the Major.Minor.Build format.
-///	</summary>
-{class function TNativeUtility.FileVersionInfoFromString(
-  versionStr: string): TFileVersionInfo;
-var
-  ix1: integer;
-  ix2: integer;
-  buildString: string;
-begin
-  ix1 := Pos('.', versionStr);
-  if ix1 > 0 then
-  begin
-    result.Major := StrToInt(Copy(versionStr, 1, ix1 - 1));
-    ix2 := Pos('.', versionStr, ix1 + 1);
-    if ix2 > ix1 then
-    begin
-      result.Minor := StrToInt(Copy(versionStr, ix1 + 1, ix2 - ix1 - 1));
-      ix1 := ix2;
-      ix2 := Pos('.', versionStr, ix1 + 1);
-      if ix2 > 0 then
-        raise EopaRException.Create('Error: Version string does not follow Major.Minor.Build format.');
 
-      buildString := Copy(versionStr, ix1 + 1, Length(versionStr) - ix1);
-      result.Build := StrToInt(buildString);
-    end;
-  end;
-end;}
-//------------------------------------------------------------------------------
-class procedure TNativeUtility.Finalize;
+function CompareRVersion(List: TStringList; Index1, Index2: Integer): Integer;
+var
+  version1: TFileVersionInfo;
+  version2: TFileVersionInfo;
+begin
+  version1 := TFileVersionInfo.Create(List[Index1]);
+  version2 := TFileVersionInfo.Create(List[Index2]);
+
+  if version1.IsEqualTo(version2) then
+    result := 0
+  else if version1.IsGreaterThan(version2) then
+    result := -1
+  else
+    result := 1;
+end;
+
+
+constructor TREnvironmentPaths.Create;
+begin
+  inherited;
+  FLogger := TStringList.Create;
+  ClearSavedEnvironmentPaths;
+end;
+
+destructor TREnvironmentPaths.Destroy;
 begin
   FLogger.Free;
+  inherited;
 end;
-//------------------------------------------------------------------------------
-class function TNativeUtility.FindRHome(path: string;
-  logger: TStringList): string;
+
+procedure TREnvironmentPaths.ClearSavedEnvironmentPaths;
+begin
+  FRHome := '';
+  FRLibraryDirectory := '';
+end;
+
+function TREnvironmentPaths.FindInstallationPathFromRegistry(const
+    aRegistryKey: TRegKey): string;
 var
-  rHome: string;
+  registry: TRegistry;
 begin
-  case TOSVersion.Platform of
-    pfWindows: begin
-      rHome := GetRhomeWin32NT(logger);
-    end;
+  Result := '';
 
-    pfMacOS: begin
-      { TODO : TNativeUtility.FindRHome - pfMacOS }
-    end;
+  FLogger.Add(Format('Looking for the %s registry value for the registry key: %s',
+                    [INSTALLPATH_KEY, aRegistryKey.SubKeyPath]));
 
-    pfLinux: begin
-      { TODO : TNativeUtility.FindRHome - pfLinux }
-    end
-    else
-      raise EopaRException.Create('Error: Platform not supported');
-  end;
-  result := rHome;
-end;
-//------------------------------------------------------------------------------
-class function TNativeUtility.FindRPath(homeDir: string): string;
-begin
-  case TOSVersion.Platform of
-    pfWindows: begin
-      result := FindRPathWindows(homeDir);
-    end;
+  registry := TRegistry.Create(KEY_READ);
+  registry.RootKey := aRegistryKey.RootKey;
+  try
+    if not registry.OpenKeyReadOnly(aRegistryKey.SubKeyPath) then
+      raise EopaRException.CreateFmt('Failed to open registry path: "%s"', [aRegistryKey.SubKeyPath]);
 
-    pfMacOS: begin
-      { TODO : TNativeUtility.FindRPath - pfMacOS }
-    end;
-
-    pfLinux: begin
-      { TODO : TNativeUtility.FindRPath - pfLinux }
-    end
-    else
-      raise EopaRException.Create('Error: Platform not supported');
-  end;
-end;
-//------------------------------------------------------------------------------
-class function TNativeUtility.FindRPathFromRegistry(
-  logger: TStringList): string;
-var
-  is64bit: boolean;
-  coreKey: TRegKey;
-  installPath: string;
-  versionInfo: TFileVersionInfo;
-  testInfo: TFileVersionInfo;
-  bin: string;
-begin
-  CheckPlatformWin32;
-  is64bit := TOSVersion.Architecture = arIntelx64;
-  coreKey := GetRCoreRegistryKeyWin32(logger);
-  installPath := GetRInstallPathFromRCoreRegKey(coreKey, logger);
-  versionInfo := GetRVersionFromRegistry(logger);
-  bin := TPath.Combine(installPath, 'bin');
-
-  // -- Up to 2.11.x, DLLs are installed in R_HOME\bin.
-  // -- From 2.12.0, DLLs are installed in the one level deeper directory.
-  if versionInfo.IsLessThan(testInfo.Create(2, 12, 0)) then
-    result := bin
-  else
-    if is64bit then
-      result := TPath.Combine(bin, 'x64')
-    else
-      result := TPath.Combine(bin, 'i386');
-end;
-//------------------------------------------------------------------------------
-class function TNativeUtility.FindRPaths(var path: string; var homeDir: string): string;
-begin
-  FindRPaths(path, homeDir, FLogger);
-  result := FLogger.Text;
-end;
-//------------------------------------------------------------------------------
-class function TNativeUtility.FindRPathWindows(homeDir: string): string;
-begin
-  if homeDir = '' then
-    result := FindRPathFromRegistry
-  else
-    result := ConstructRPath(homeDir);
-end;
-//------------------------------------------------------------------------------
-class procedure TNativeUtility.FindRPaths(var path: string; var homeDir: string;
-  logger: TStringList);
-var
-  printPath: string;
-  printHome: string;
-begin
-  if path = '' then printPath := 'null' else printPath := path;
-  if homeDir = '' then printHome := 'null' else printHome := homeDir;
-  logger.Add(Format('Caller provided path = "%s", homeDir = "%s"', [printPath, printHome]));
-
-  if homeDir = '' then
-  begin
-    homeDir := GetEnvironmentVariable('R_HOME');
-    if homeDir = '' then printHome := 'null' else printHome := homeDir;
-    logger.Add(Format('opaR looked for preset R_HOME env. var. and found: "%s"', [printHome]));
-  end;
-
-  if homeDir = '' then
-  begin
-    homeDir := FindRHome(path, logger);
-    if homeDir = '' then printHome := 'null' else printHome := homeDir;
-    logger.Add(Format('opaR looked for platform-specific way (e.g. win registry) and found: "%s"', [printHome]));
-
-    if not (homeDir = '') then
+    if registry.ValueExists(INSTALLPATH_KEY) then
     begin
-      if path = '' then
-      begin
-        path := FindRPath(homeDir);
-        if path = '' then printPath := 'null' else printPath := path;
-        logger.Add(Format('opaR trying to find rPath based on rHome; Deduced: "%s"', [printPath]));
-      end;
-
-      if path = '' then
-      begin
-        path := FindRPath;
-        if path = '' then printPath := 'null' else printPath := path;
-        logger.Add(Format('opaR trying to find rPath independently of rHome; Deduced: "%s"', [printPath]));
-      end;
+      result := registry.ReadString(INSTALLPATH_KEY);
+      FLogger.Add(Format('Found %s: "%s"', [INSTALLPATH_KEY, result]));
     end
     else
     begin
-      homeDir := FindRHome(path);
-      if homeDir = '' then printHome := 'null' else printHome := homeDir;
-      logger.Add(Format('opaR trying to find rHome based on rPath; Deduced: "%s"', [printHome]));
+      FLogger.Add(Format('Registry key %s does not have value %s',
+            [aRegistryKey.SubKeyPath, INSTALLPATH_KEY]));
     end;
+
+    registry.CloseKey;
+  finally
+    registry.Free;
+  end;
+end;
+
+function TREnvironmentPaths.FindNewestRInstallationFromRegistry(const
+    aRegistryKey: TRegKey): string;
+var
+  registry: TRegistry;
+  subKeys: TStringList;
+  rVersion: string;
+  curRegKey: TRegKey;
+begin
+  Result := '';
+
+  registry := TRegistry.Create(KEY_READ);
+  registry.RootKey := aRegistryKey.RootKey;
+
+  subKeys := TStringList.Create;
+
+  try
+    if not registry.OpenKeyReadOnly(aRegistryKey.SubKeyPath) then
+      raise EopaRException.CreateFmt('Failed to open registry path: "%s"', [aRegistryKey.SubKeyPath]);
+
+    registry.GetKeyNames(subKeys);
+    registry.CloseKey;
+
+    subKeys.CustomSort(CompareRVersion);
+
+    FLogger.Add('Potential versions of R from the system registry:');
+    FLogger.AddStrings(subKeys);
+
+    curRegKey.RootKey := aRegistryKey.RootKey;
+    for rVersion in subKeys do
+    begin
+      curRegKey.SubKeyPath := aRegistryKey.SubKeyPath + '\' + rVersion;
+      result := FindInstallationPathFromRegistry(curRegKey);
+      if result <> '' then
+        break;
+    end;
+  finally
+    registry.Free;
+    subKeys.Free;
+  end;
+end;
+
+procedure TREnvironmentPaths.FindRHomeFromSystemRegistry;
+var
+  regKeyRCore: TRegKey;
+  installDir: string;
+begin
+  regKeyRCore := GetRCoreRegistryKeyWin32;
+  installDir := FindInstallationPathFromRegistry(regKeyRCore);
+  if installDir = '' then
+  begin
+    FLogger.Add(Format('Registry value %s not found in root R registry. ' +
+          'Now find the most recent installation of R', [INSTALLPATH_KEY]));
+    installDir := FindNewestRInstallationFromRegistry(regKeyRCore);
   end;
 
-  if homeDir = '' then
-    logger.Add('Error: R_HOME was not provided and a suitable path could not be found by opaR');
+  FRHome := installDir;
+  if not DirectoryExists(FRHome) then
+    raise EopaRException.Create('The installation path of R in the ' +
+        'system registry no longer points to a valid folder. Found : ' + FRHome);
 end;
-//------------------------------------------------------------------------------
-class function TNativeUtility.GetRLibraryFileName: string;
+
+procedure TREnvironmentPaths.FindRHomeValue;
+begin
+  case TOSVersion.Platform of
+    pfWindows: GetRhomeWindows;
+    else
+      raise EopaRException.Create('Error: Platform not supported');
+  end;
+end;
+
+procedure TREnvironmentPaths.GetRhomeWindows;
+begin
+  if not TryToFindRHomeFromEnvironmentVariables then
+  begin
+    FLogger.Add('The R home path was not found in the environment ' +
+                  'variables, now checking the system registry');
+
+    FindRHomeFromSystemRegistry;
+  end;
+
+
+
+  if FRHome = '' then
+  begin
+    raise EopaRException.Create('Unable to find the R library from the ' +
+        'system registry. Please check if R is installed on your computer');
+  end;
+end;
+
+function TREnvironmentPaths.TryToFindRHomeFromEnvironmentVariables: boolean;
+var
+  rHomeEnv: string;
+begin
+  Result := False;
+  rHomeEnv := GetEnvironmentVariable(R_HOME_ENVIRONMENT_VARIABLE);
+
+  if rHomeEnv <> '' then
+  begin
+    FLogger.Add(Format('The %s enviroment variable has value: %s',
+                [R_HOME_ENVIRONMENT_VARIABLE, rHomeEnv]));
+    Result := True;
+    if DirectoryExists(rHomeEnv) then
+      FRHome := rHomeEnv
+    else
+      raise EopaRException.CreateFMT('The %s environment variable was set ' +
+          'to an invalid path!: %s', [R_HOME_ENVIRONMENT_VARIABLE, rHomeEnv]);
+  end
+  else
+  begin
+    FLogger.Add(Format('The %s enviroment variable was not set',
+                [R_HOME_ENVIRONMENT_VARIABLE]));
+  end;
+end;
+
+procedure TREnvironmentPaths.FindRInstallPathAndSetEnvVariables(const
+    aDefaultRHomeValue: string = '');
+begin
+  ClearSavedEnvironmentPaths;
+
+  if aDefaultRHomeValue <> '' then
+    FLogger.Add(Format('Using user input R home value: "%s"', [aDefaultRHomeValue]));
+
+  if aDefaultRHomeValue <> '' then
+    FRHome := aDefaultRHomeValue
+  else
+    FindRHomeValue;
+
+  FindRLibraryFilePathFromRHome;
+
+  FLogger.Add(Format('We have determined that the correct R home value is: "%s"', [RHome]));
+  FLogger.Add(Format('We have determined that the R library directory is: "%s"', [RLibraryDirectory]));
+
+  SetEnvironmentVariables;
+end;
+
+procedure TREnvironmentPaths.FindRLibraryFilePathFromRHome;
+begin
+  case TOSVersion.Platform of
+    pfWindows: FindRPathFromRHomeWindows;
+    else
+      raise EopaRException.Create('Error: Platform not supported');
+  end;
+end;
+
+procedure TREnvironmentPaths.FindRPathFromRHomeWindows;
+var
+  pathToBinFolder: string;
+  pathWithBitVersion: string;
+begin
+  pathToBinFolder := TPath.Combine(RHome, 'bin');
+
+  if not DirectoryExists(pathToBinFolder) then
+    raise EOpaRException.Create('Unable to find R installation directory: ' + pathToBinFolder);
+
+
+  {$IFDEF CPUX64}
+  pathWithBitVersion := TPath.Combine(pathToBinFolder, 'x64');
+  {$ELSE}
+  pathWithBitVersion := TPath.Combine(pathToBinFolder, 'i386');
+  {$ENDIF}
+
+  // Prior to version 2.12.0 of R, the R.dll file was kept directly in the bin
+  // folder. This changed when R changed to installing the x32 and x64 versions
+  // in parallel folders in tthe bin folder.
+  if DirectoryExists(pathWithBitVersion) then
+    FRLibraryDirectory := pathWithBitVersion
+  else
+    FRLibraryDirectory := pathToBinFolder;
+end;
+
+function TREnvironmentPaths.RLibraryFileName: string;
 begin
   case TOSVersion.Platform of
     pfWindows: result := 'R.DLL';
@@ -299,236 +359,111 @@ begin
       raise EopaRException.Create('Error: Platform not supported');
   end;
 end;
-//------------------------------------------------------------------------------
-class function TNativeUtility.GetRCoreRegistryKeyWin32(
-  logger: TStringList): TRegKey;
+
+function TREnvironmentPaths.GetRCoreRegistryKeyWin32: TRegKey;
 var
   Reg: TRegistry;
   subKey: string;
 begin
-  CheckPlatformWin32;
-
   Reg := TRegistry.Create(KEY_READ);
   Reg.RootKey := HKEY_LOCAL_MACHINE;
 
+  result.RootKey := 0;
+  result.SubKeyPath := '';
+
   try
-    if not Reg.OpenKeyReadOnly('SOFTWARE\R-core') then
+    if not Reg.OpenKeyReadOnly(R_CORE_REGISTRY_PATH) then
     begin
-      WriteToLogger('Local machine SOFTWARE\R-core not found - trying current user', logger);
+      FLogger.Add('HKEY_LOCAL_MACHINE\SOFTWARE\R-core not found');
+      FLogger.Add('Trying HKEY_CURRENT_USER\SOFTWARE\R-core');
+
       Reg.RootKey := HKEY_CURRENT_USER;
-      if not Reg.OpenKeyReadOnly('Software\R-core') then
+      if not Reg.OpenKeyReadOnly(R_CORE_REGISTRY_PATH) then
         raise EopaRException.Create('Windows Registry key "SOFTWARE\R-core" not found in either HKEY_LOCAL_MACHINE or HKEY_CURRENT_USER');
     end;
     Reg.CloseKey;
 
-    {$IFNDEF CPUX64}
-      subKey := 'R';
-    {$ELSE}
-      subKey := 'R64';
-    {$ENDIF}
+  {$IFNDEF CPUX64}
+    subKey := 'R';
+  {$ELSE}
+    subKey := 'R64';
+  {$ENDIF}
 
-    if Reg.OpenKeyReadOnly('SOFTWARE\R-core\' + subKey) then
+    if Reg.OpenKeyReadOnly(R_CORE_REGISTRY_PATH + subKey) then
     begin
       result.RootKey := Reg.RootKey;
-      result.SubKeyPath := 'SOFTWARE\R-core\' + subKey;
+      result.SubKeyPath := R_CORE_REGISTRY_PATH + subKey;
     end
     else
-      raise EopaRException.CreateFmt('Windows Registry sub-key %s of key %s was not found', [subKey, 'Software\R-core\']);
-  finally
-    Reg.Free;
-  end;
-end;
-//------------------------------------------------------------------------------
-class function TNativeUtility.GetRhomeWin32NT(logger: TStringList): string;
-var
-  rCoreKey: TRegKey;
-begin
-  rCoreKey := GetRCoreRegistryKeyWin32(logger);
-  result := GetRInstallPathFromRCoreRegKey(rCoreKey, logger);
-end;
-//------------------------------------------------------------------------------
-//-- "GetRInstallPathFromRCoreKegKey" in R.NET.
-class function TNativeUtility.GetRInstallPathFromRCoreRegKey(key: TRegKey;
-  logger: TStringList): string;
-var
-  Reg: TRegistry;
-  installPath: string;
-  currentVersion: string;
-  keyNames: TStringList;
-  valueNames: TStringList;
-begin
-  Reg := TRegistry.Create(KEY_READ);
-  keyNames := TStringList.Create;
-  valueNames := TStringList.Create;
-  Reg.RootKey := key.RootKey;
-
-  try
-    if Reg.OpenKeyReadOnly(key.SubKeyPath) then
     begin
-      Reg.GetKeyNames(keyNames);
-      Reg.GetValueNames(valueNames);
-
-      if valueNames.Count = 0 then
-      begin
-        WriteToLogger('Did not find any value names under ' + key.SubKeyPath, logger);
-        { TODO : GetRInstallPathFromRCoreRegKey -> Recurse. }
-      end
-      else
-      begin
-        if valueNames.IndexOf(installPathKey) > -1 then
-        begin
-          WriteToLogger('Found sub-key InstallPath under ' + key.SubKeyPath, logger);
-          installPath := Reg.ReadString(installPathKey);
-        end
-        else
-        begin
-          WriteToLogger('Did not find sub-key InstallPath under ' + key.SubKeyPath, logger);
-          if valueNames.IndexOf(currentVersionKey) > -1 then
-          begin
-            WriteToLogger('Found sub-key Current Version under ' + key.SubKeyPath, logger);
-            currentVersion := Reg.ReadString(currentVersionKey);
-            // -- If we haven't found the InstallPath at the R core level then it will hopefully be under the version number sub-key.
-            Reg.CloseKey;
-            Reg.OpenKeyReadOnly(key.SubKeyPath + '\' + currentVersion);
-            installPath := Reg.ReadString(installPathKey);
-          end
-          else
-            WriteToLogger('Sub key ' + currentVersion + ' not found in ' + key.SubKeyPath, logger);
-        end;
-      end;
+      raise EopaRException.CreateFmt('Windows Registry sub-key %s of key %s was not found',
+              [subKey, R_CORE_REGISTRY_PATH]);
     end;
-  finally
-    Reg.Free;
-    keyNames.Free;
-    valueNames.Free;
-  end;
-  result := installPath;
-end;
-//------------------------------------------------------------------------------
-class function TNativeUtility.GetRVersionFromRegistry(
-  logger: TStringList): TFileVersionInfo;
-var
-  i: integer;
-  ix: integer;
-  coreKey: TRegKey;
-  currentVersion: string;
-  Reg: TRegistry;
-  keyNames: TStringList;
-  newestVersion: TFileVersionInfo;
-  testVersion: TFileVersionInfo;
-begin
-  coreKey := GetRCoreRegistryKeyWin32(logger);
-
-  Reg := TRegistry.Create(KEY_READ);
-  Reg.RootKey := coreKey.RootKey;
-  ix := 0;
-
-  try
-    if Reg.OpenKeyReadOnly(coreKey.SubKeyPath) then
-      currentVersion := Reg.ReadString(currentVersionKey);
-
-    if currentVersion = '' then
-    begin
-      keyNames := TStringList.Create;
-      try
-        Reg.GetKeyNames(keyNames);
-        if keyNames.Count > 0 then
-        begin
-          // -- We can't assume the first value is the version number we need
-          // -- since there might be more than one version of R installed.
-          // -- We also can't assume the last in the list is the latest version.
-          newestVersion.Create(0, 0, 0);
-          for i := 0 to keyNames.Count - 1 do
-          begin
-            if Pos('.', keyNames[i], 1) > 0 then
-            begin
-              testVersion.Create(keyNames[i]);
-              if testVersion.IsGreaterThan(newestVersion) then
-              begin
-                newestVersion := testVersion;
-                ix := i;
-              end;
-            end;
-          end;
-
-          currentVersion := keyNames[ix];
-        end;
-      finally
-        keyNames.Free;
-      end;
-    end;
+    Reg.CloseKey;
   finally
     Reg.Free;
   end;
+end;
 
-  result.Create(currentVersion);
-end;
-//------------------------------------------------------------------------------
-class procedure TNativeUtility.Initialize;
+procedure TREnvironmentPaths.GetLoggerText(const aStringsToPopulate: TStrings);
 begin
-  FLogger := TStringList.Create;
+  aStringsToPopulate.AddStrings(FLogger);
 end;
-//------------------------------------------------------------------------------
-class function TNativeUtility.PrependToEnv(path, envVarName: string): string;
+
+procedure TREnvironmentPaths.SetEnvironmentVariables;
+begin
+  SetRHomeEnvironmentVariable;
+  AddRLibraryPathToPathEnvVariable;
+end;
+
+procedure TREnvironmentPaths.SetRHomeEnvironmentVariable;
 var
-  currentPathEnv: string;
-  paths: TStringDynArray;
+  rHomeEnvVarName: PWideChar;
+  rHomeEnvVarValue: PWideChar;
 begin
-  currentPathEnv := GetEnvironmentVariable(envVarName);
-  paths := SplitString(currentPathEnv, TPath.PathSeparator);
-  if paths[0] = path then
-    result := currentPathEnv
-  else
-    result := path + TPath.PathSeparator + currentPathEnv;
+  FLogger.Add(Format('Setting R_HOME environment variable to: "%s"', [RHome]));
+  rHomeEnvVarName := R_HOME_ENVIRONMENT_VARIABLE;
+  rHomeEnvVarValue := PWideChar(RHome);
+  SetEnvironmentVariable(rHomeEnvVarName, rHomeEnvVarValue);
 end;
-//------------------------------------------------------------------------------
-class procedure TNativeUtility.SetEnvironmentVariables(path, homeDir: string);
+
+procedure TREnvironmentPaths.AddRLibraryPathToPathEnvVariable;
+var
+  pathEnvVarName: PWideChar;
+  pathValueStart: string;
+  currentPaths: TStringDynArray;
+  pathValueWithR: PWideChar;
+  alreadyHasRPath: boolean;
+  cntr: Integer;
 begin
-  FLogger.Clear;
+  pathEnvVarName := 'PATH';
+  pathValueStart := GetEnvironmentVariable(pathEnvVarName);
 
-  if (path <> '') and (not DirectoryExists(path)) then
-    raise EopaRException.CreateFmt('Directory does not exist: %s', [path]);
-  if (homeDir <> '') and (not DirectoryExists(homeDir)) then
-    raise EopaRException.CreateFmt('Directory does not exist: %s', [homeDir]);
-
-  FindRPaths(path, homeDir, FLogger);
-
-  if homeDir = '' then
-    raise EopaRException.Create('Error: R_HOME was not provided and a suitable path could not be found by opaR');
-
-  SetenvPrepend(path);
-
-  // -- R.NET:  It is highly recommended to use the 8.3 short path format on windows (R.NET).
-  // -- opaR:   Use of the short path name gives an empty rhome in TRStart - needs investigation.
-  //if TOSVersion.Platform = pfWindows then
-  //  homeDir := ExtractShortPathName(homeDir);
-
-  if not DirectoryExists(homeDir) then
-    raise EopaRException.CreateFmt('Directory %s does not exist - cannot set the environment variable R_HOME to that value', [homeDir]);
-
-  SetEnvironmentVariable('R_HOME', PWideChar(homeDir));
-
-  if TOSVersion.Platform = pfLinux then
+  alreadyHasRPath := False;
+  currentPaths := SplitString(pathValueStart, TPath.PathSeparator);
+  for cntr := 0 to Length(currentPaths) - 1 do
   begin
-    { TODO : SetEnvironmentVariables - custom install on Linux. }
+    if SameText(RLibraryDirectory, currentPaths[cntr]) then
+    begin
+      alreadyHasRPath := True;
+      break;
+    end;
+  end;
+
+  if not alreadyHasRPath then
+  begin
+    FLogger.Add(Format('Adding the R library path to the PATH ' +
+            'environment variable: "%s"', [RLibraryDirectory]));
+
+    pathValueWithR := PWideChar(Format('%s;%s', [pathValueStart, RLibraryDirectory]));
+    SetEnvironmentVariable(pathEnvVarName, pathValueWithR);
+  end
+  else
+  begin
+    FLogger.Add(Format('R library path is already in the PATH ' +
+            'environment variable: "%s"', [RLibraryDirectory]));
   end;
 end;
-//------------------------------------------------------------------------------
-class procedure TNativeUtility.SetenvPrepend(path, envVarName: string);
-var
-  varValue: PWideChar;
-begin
-  varValue := PWideChar(PrependToEnv(path, envVarName));
-  SetEnvironmentVariable('PATH', varValue);
-end;
-//------------------------------------------------------------------------------
-class procedure TNativeUtility.WriteToLogger(output: string;
-  logger: TStringList);
-begin
-  if assigned(logger) then
-    logger.Add(output);
-end;
-
 
 
 { TFileVersionInfo }
@@ -543,21 +478,30 @@ var
   ix2: integer;
   buildString: string;
 begin
-  ix1 := Pos('.', versionStr);
-  if ix1 > 0 then
+  if not TRegEx.IsMatch(versionStr, VERSION_NUMBER_REGEX) then
   begin
-    self.Major := StrToInt(Copy(versionStr, 1, ix1 - 1));
-    ix2 := Pos('.', versionStr, ix1 + 1);
-    if ix2 > ix1 then
+    Major := 0;
+    Minor := 0;
+    Build := 0;
+  end
+  else
+  begin
+    ix1 := Pos('.', versionStr);
+    if ix1 > 0 then
     begin
-      self.Minor := StrToInt(Copy(versionStr, ix1 + 1, ix2 - ix1 - 1));
-      ix1 := ix2;
+      self.Major := StrToInt(Copy(versionStr, 1, ix1 - 1));
       ix2 := Pos('.', versionStr, ix1 + 1);
-      if ix2 > 0 then
-        raise EopaRException.Create('Error: Version string does not follow Major.Minor.Build format.');
+      if ix2 > ix1 then
+      begin
+        self.Minor := StrToInt(Copy(versionStr, ix1 + 1, ix2 - ix1 - 1));
+        ix1 := ix2;
+        ix2 := Pos('.', versionStr, ix1 + 1);
+        if ix2 > 0 then
+          raise EopaRException.Create('Error: Version string does not follow Major.Minor.Build format.');
 
-      buildString := Copy(versionStr, ix1 + 1, Length(versionStr) - ix1);
-      self.Build := StrToInt(buildString);
+        buildString := Copy(versionStr, ix1 + 1, Length(versionStr) - ix1);
+        self.Build := StrToInt(buildString);
+      end;
     end;
   end;
 end;
@@ -573,21 +517,47 @@ constructor TFileVersionInfo.Create(versionStr: string);
 begin
   BuildFromString(versionStr);
 end;
-//------------------------------------------------------------------------------
-function TFileVersionInfo.IsGreaterThan(testInfo: TFileVersionInfo): boolean;
+
+function TFileVersionInfo.IsEqualTo(const aTestInfo: TFileVersionInfo): boolean;
 begin
-  result := (self.Major > testInfo.Major) and (self.Minor > testInfo.Minor);
+  result := (self.Major = aTestInfo.Major) and
+            (self.Minor = aTestInfo.Minor) and
+            (self.Build = aTestInfo.Build);
+end;
+
+//------------------------------------------------------------------------------
+function TFileVersionInfo.IsGreaterThan(const aTestInfo: TFileVersionInfo):
+    boolean;
+begin
+  result := False;
+  if self.Major > aTestInfo.Major then
+    result := True
+  else if self.Major = aTestInfo.Major then
+  begin
+    if (self.Minor > aTestInfo.Minor) then
+      result := True
+    else if (self.Minor = aTestInfo.Minor) and (self.Build > aTestInfo.Build) then
+      result := True;
+  end;
 end;
 //------------------------------------------------------------------------------
-function TFileVersionInfo.IsLessThan(testInfo: TFileVersionInfo): boolean;
+function TFileVersionInfo.IsLessThan(const aTestInfo: TFileVersionInfo):
+    boolean;
 begin
-  result := (self.Major < testInfo.Major) and (self.Minor < testInfo.Minor);
+  result := False;
+  if self.Major < aTestInfo.Major then
+    result := True
+  else if self.Major = aTestInfo.Major then
+  begin
+    if (self.Minor < aTestInfo.Minor) then
+      result := True
+    else if (self.Minor = aTestInfo.Minor) and (self.Build < aTestInfo.Build) then
+      result := True;
+  end;
 end;
 
 initialization
-  TNativeUtility.Initialize;
-
 finalization
-  TNativeUtility.Finalize;
+  FreeAndNil(glREnvironmentPaths);
 
 end.

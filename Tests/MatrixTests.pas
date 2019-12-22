@@ -8,7 +8,8 @@ uses
 
   opaR.Engine,
   opaR.SymbolicExpression,
-  opaR.Interfaces;
+  opaR.Interfaces,
+  opaR.Utils;
 
 type
   TMatrixTests = class(TTestCase)
@@ -22,6 +23,7 @@ type
     procedure Dim_Test;
     procedure IntegerMatrix_Test;
     procedure NumericMatrix_Test;
+    procedure MatrixCreation_Test;
   end;
 
 
@@ -125,6 +127,64 @@ begin
   Check(SameValue(3.1, matrix[52, 1]));
   Check(SameValue(3.9, matrix[59, 2]));
   Check(SameValue(2.3, matrix[141, 3]));
+end;
+//------------------------------------------------------------------------------
+procedure TMatrixTests.MatrixCreation_Test;
+var
+  integerMatrix: TDynMatrix<integer>;
+  numericMatrix: TDynMatrix<double>;
+  logicalMatrix: TDynMatrix<longbool>;
+  resultVec: TArray<integer>;
+  sumFunc: IRFunction;
+  sumDef: string;
+  i: Integer;
+  j: Integer;
+  resultExpr: ISymbolicExpression;
+begin
+  sumDef := 'function(aInputMatrix) {return(apply(aInputMatrix,1,sum))}';
+  sumFunc := FEngine.Evaluate(sumDef).AsFunction;
+
+  SetLength(integerMatrix, 10);
+  for i  := Low(integerMatrix) to High(integerMatrix) do
+  begin
+    SetLength(integerMatrix[i], 10);
+    for j := Low(integerMatrix[i]) to High(integerMatrix[i]) do
+    begin
+      integerMatrix[i,j] := 1;
+    end;
+  end;
+
+  resultExpr := sumFunc.Invoke(FEngine.CreateIntegerMatrix(integerMatrix) as ISymbolicExpression);
+  resultVec := resultExpr.AsInteger.ToArray;
+  CheckEquals(10, resultVec[1]);
+
+  SetLength(numericMatrix, 10);
+  for i  := Low(numericMatrix) to High(numericMatrix) do
+  begin
+    SetLength(numericMatrix[i], 10);
+    for j := Low(numericMatrix[i]) to High(numericMatrix[i]) do
+    begin
+      numericMatrix[i,j] := 2.5;
+    end;
+  end;
+
+  resultExpr := sumFunc.Invoke(FEngine.CreateNumericMatrix(numericMatrix) as ISymbolicExpression);
+  resultVec := resultExpr.AsInteger.ToArray;
+  CheckEquals(25, resultVec[1]);
+
+  SetLength(logicalMatrix, 10);
+  for i  := Low(logicalMatrix) to High(logicalMatrix) do
+  begin
+    SetLength(logicalMatrix[i], 10);
+    for j := Low(logicalMatrix[i]) to High(logicalMatrix[i]) do
+    begin
+      logicalMatrix[i,j] := true;
+    end;
+  end;
+
+  resultExpr := sumFunc.Invoke(FEngine.CreateLogicalMatrix(logicalMatrix) as ISymbolicExpression);
+  resultVec := resultExpr.AsInteger.ToArray;
+  CheckEquals(-10, resultVec[1]);
 end;
 //------------------------------------------------------------------------------
 procedure TMatrixTests.SetUp;

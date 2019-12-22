@@ -38,15 +38,13 @@ uses
   opaR.Expression;
 
 type
-  TExpressionVector = class(TRVector<IExpression>, IExpressionVector)
+  TExpressionVector = class(TRObjectVector<IExpression>, IExpressionVector)
   protected
     function GetDataSize: integer; override;
-    function GetValue(ix: integer): IExpression; override;
-    procedure SetValue(ix: integer; value: IExpression); override;
+    function ConvertPSEXPRECToValue(const aValue: PSEXPREC): IExpression; override;
+    function ConvertValueToPSEXPREC(const aValue: IExpression): PSEXPREC; override;
   public
     constructor Create(const engine: IREngine; pExpr: PSEXPREC);
-    function GetArrayFast: TArray<IExpression>; override;
-    procedure SetVectorDirect(const values: TArray<IExpression>); override;
   end;
 
 implementation
@@ -61,74 +59,30 @@ constructor TExpressionVector.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
   inherited Create(engine, pExpr);
 end;
-//------------------------------------------------------------------------------
-function TExpressionVector.GetArrayFast: TArray<IExpression>;
-var
-  i: integer;
+
+function TExpressionVector.ConvertPSEXPRECToValue(const aValue: PSEXPREC):
+    IExpression;
 begin
-  SetLength(result, VectorLength);
-  for i := 0 to VectorLength - 1 do
-    result[i] := GetValue(i);
+  // -- Lifetime management of the returned TExpression is the
+  // -- responsibility of the calling code.
+  if (aValue = nil) or (aValue = TEngineExtension(Engine).NilValue) then
+    result := nil
+  else
+    result := TExpression.Create(Engine, aValue);
+end;
+
+function TExpressionVector.ConvertValueToPSEXPREC(const aValue: IExpression):
+    PSEXPREC;
+begin
+  if aValue = nil then
+    result := TEngineExtension(Engine).NilValue
+  else
+    result := aValue.Handle;
 end;
 //------------------------------------------------------------------------------
 function TExpressionVector.GetDataSize: integer;
 begin
   result := SizeOf(PSEXPREC);
-end;
-//------------------------------------------------------------------------------
-function TExpressionVector.GetValue(ix: integer): IExpression;
-var
-  PPtr: PSEXPREC;
-  pp: TProtectedPointer;
-begin
-  if (ix < 0) or (ix >= VectorLength) then
-    raise EopaRException.Create('Error: Vector index out of bounds');
-
-  pp := TProtectedPointer.Create(self);
-  try
-    PPtr := PSEXPREC(PPointerArray(DataPointer)^[ix]);
-
-    if (PPtr = nil) or (PPtr = TEngineExtension(Engine).NilValue) then
-      result := nil
-    else
-      // -- Lifetime management of the returned TExpression is the
-      // -- responsibility of the calling code.
-      result := TExpression.Create(Engine, PPtr);
-  finally
-    pp.Free;
-  end;
-end;
-//------------------------------------------------------------------------------
-//-- Note that TExpressionVector does not get involved in any lifetime management
-//-- of TExpression objects - in SetValue we just copy the pointer value to the
-//-- internal R vector.
-procedure TExpressionVector.SetValue(ix: integer; value: IExpression);
-var
-  PData: PSEXPREC;
-  pp: TProtectedPointer;
-begin
-  if (ix < 0) or (ix >= VectorLength) then
-    raise EopaRException.Create('Error: Vector index out of bounds');
-
-  pp := TProtectedPointer.Create(self);
-  try
-    if value = nil then
-      PData := TEngineExtension(Engine).NilValue
-    else
-      PData := value.Handle;
-
-    PPointerArray(DataPointer)^[ix] := PData;
-  finally
-    pp.Free;
-  end;
-end;
-//------------------------------------------------------------------------------
-procedure TExpressionVector.SetVectorDirect(const values: TArray<IExpression>);
-var
-  i: integer;
-begin
-  for i := 0 to Length(values) - 1 do
-    SetValue(i, values[i]);
 end;
 
 end.

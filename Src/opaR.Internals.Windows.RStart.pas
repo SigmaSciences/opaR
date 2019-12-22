@@ -31,8 +31,8 @@ type
 
   TRStart = {packed} record
     Common: TUnixRStruct;
-    rhome: PAnsiChar;
-    home: PAnsiChar;
+    rhome: AnsiString;
+    home: AnsiString;
 
     ReadConsole: Tblah1;
     WriteConsole: Tblah2;

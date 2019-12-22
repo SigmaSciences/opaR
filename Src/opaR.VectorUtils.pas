@@ -31,30 +31,101 @@ interface
 
 uses
   System.Types,
-
+  opaR.Interfaces,
   opaR.SEXPREC;
 
 type
-  //IVectorEnumerator = interface
-  //  ['{B38F0A35-FCF4-48C9-8C19-ED7DC584E6A1}']
-  //  function GetCurrent: Pointer;
-  //  function MoveNext: Boolean;
-  //  property Current: Pointer read GetCurrent;
-  //end;
 
-  IVectorEnumerator<T> = interface{(IVectorEnumerator)}
-    function GetCurrent: T;
-    function MoveNext: Boolean;
-    property Current: T read GetCurrent;
-  end;
-
-  // -- Define our own IEnumerable<T> which doesn't depend on the non-generic version.
-  IVectorEnumerable<T> = interface
-    function GetEnumerator: IVectorEnumerator<T>;
+  TVectorAccessUtility = class
+  public
+    class function GetPointerToIntegerInVector(const aEngine: IREngine; const
+        aVectorHandle: PSEXPREC; const aIndex: integer): PInteger; static;
+    class function GetPointerToRawInVector(const aEngine: IREngine; const
+        aVectorHandle: PSEXPREC; const aIndex: integer): PByte; static;
+    class function GetPointerToLogicalInVector(const aEngine: IREngine; const
+        aVectorHandle: PSEXPREC; const aIndex: integer): PLongBool; static;
+    class function GetPointerToRealInVector(const aEngine: IREngine; const
+        aVectorHandle: PSEXPREC; const aIndex: integer): PDouble; static;
+    class function GetStringValueInVector(const aEngine: IREngine; const
+        aVectorHandle: PSEXPREC; const aIndex: integer): string; static;
+    class procedure SetStringValueInVector(const aEngine: IREngine; const
+        aVectorHandle: PSEXPREC; const aIndex: integer; const aValue: string);
+        static;
   end;
 
 
 implementation
+
+uses
+  opaR.EngineExtension;
+
+
+class function TVectorAccessUtility.GetPointerToIntegerInVector(const aEngine:
+    IREngine; const aVectorHandle: PSEXPREC; const aIndex: integer): PInteger;
+begin
+  Result := aEngine.Rapi.IntegerVector(aVectorHandle);
+  Inc(Result, aIndex);
+end;
+
+class function TVectorAccessUtility.GetPointerToLogicalInVector(const aEngine:
+    IREngine; const aVectorHandle: PSEXPREC; const aIndex: integer): PLongBool;
+begin
+  Result := aEngine.Rapi.LogicalVector(aVectorHandle);
+  Inc(Result, aIndex);
+end;
+
+class function TVectorAccessUtility.GetPointerToRawInVector(const aEngine:
+    IREngine; const aVectorHandle: PSEXPREC; const aIndex: integer): PByte;
+begin
+  Result := aEngine.Rapi.RawVector(aVectorHandle);
+  Inc(Result, aIndex);
+end;
+
+class function TVectorAccessUtility.GetPointerToRealInVector(const aEngine:
+    IREngine; const aVectorHandle: PSEXPREC; const aIndex: integer): PDouble;
+begin
+  Result := aEngine.Rapi.RealVector(aVectorHandle);
+  Inc(Result, aIndex);
+end;
+
+class function TVectorAccessUtility.GetStringValueInVector(const aEngine:
+    IREngine; const aVectorHandle: PSEXPREC; const aIndex: integer): string;
+var
+  PStringAsCHARSXP: PSEXPREC;
+  PData: PAnsiChar;
+begin
+  // -- Each string is stored in a global pool of C-style strings, and the
+  // -- parent vector is an array of CHARSXP pointers to those strings.
+  PStringAsCHARSXP := aEngine.RApi.StringElt(aVectorHandle, aIndex);
+
+  if (PStringAsCHARSXP = TEngineExtension(aEngine).NAStringPointer) or
+      (PStringAsCHARSXP = nil) then
+    result := ''
+  else
+  begin
+    // -- At this point we have a pointer to the character vector, so we now
+    // -- need to get the actual (char *) for the data
+    PData := aEngine.RApi.Char(PStringAsCHARSXP);
+
+    result := String(AnsiString(PData));
+  end;
+end;
+
+class procedure TVectorAccessUtility.SetStringValueInVector(const aEngine:
+    IREngine; const aVectorHandle: PSEXPREC; const aIndex: integer; const
+    aValue: string);
+var
+  PData: PSEXPREC;
+begin
+  if aValue = '' then
+    PData := TEngineExtension(aEngine).NAStringPointer
+  else
+  begin
+    PData := aEngine.Rapi.MakeChar(PAnsiChar(AnsiString(aValue)));;
+  end;
+
+  aEngine.Rapi.SetStringElt(aVectorHandle, aIndex, PData);
+end;
 
 
 

@@ -28,7 +28,11 @@ interface
 uses
   System.Rtti,
 
+  {$IFNDEF NO_SPRING}
   Spring.Collections,
+  {$ELSE}
+  opaR.NoSpring,
+  {$ENDIF}
 
   opaR.SEXPREC,
   opaR.Utils,
@@ -37,8 +41,8 @@ uses
   opaR.DynamicVector;
 
 type
-  TDataFrame = class(TRVector<IDynamicVector>, IDataFrame)
-  private
+  TDataFrame = class(TRObjectVector<IDynamicVector>, IDataFrame)
+  strict private
     function GetColumnCount: integer;
     function GetRowCount: integer;
     function GetRowNames: TArray<string>;
@@ -55,13 +59,13 @@ type
     function GetColumnNames: TArray<string>;
   protected
     function GetDataSize: integer; override;
-    function GetValue(columnIndex: integer): IDynamicVector; override;
-    procedure SetValue(columnIndex: integer; value: IDynamicVector); override;
+    function ConvertPSEXPRECToValue(const aValue: PSEXPREC): IDynamicVector;
+        override;
+    function ConvertValueToPSEXPREC(const aValue: IDynamicVector): PSEXPREC;
+        override;
   public
-    function GetArrayFast: TArray<IDynamicVector>; reintroduce;
     function GetRow(rowIndex: integer): IDataFrameRow;
     function GetRows: IList<IDataFrameRow>;
-    procedure SetVectorDirect(const values: TArray<IDynamicVector>); override;
     property ColumnCount: integer read GetColumnCount;
     property ColumnNames: TArray<string> read GetColumnNames;
     property RowCount: integer read GetRowCount;
@@ -82,23 +86,32 @@ uses
 const
   cRowNamesSymbolName = 'R_RowNamesSymbol';
 
+function TDataFrame.ConvertPSEXPRECToValue(const aValue: PSEXPREC):
+    IDynamicVector;
+begin
+  if (aValue = nil) or (aValue = TEngineExtension(Engine).NilValue) then
+    result := nil
+  else
+    result := TDynamicVector.Create(Engine, aValue);
+end;
+
+function TDataFrame.ConvertValueToPSEXPREC(const aValue: IDynamicVector):
+    PSEXPREC;
+begin
+  if aValue = nil then
+    result := TEngineExtension(Engine).NilValue
+  else
+    result := (aValue as TSymbolicExpression).Handle;
+end;
+
 { TDataFrame }
 
-//------------------------------------------------------------------------------
-function TDataFrame.GetArrayFast: TArray<IDynamicVector>;
-var
-  i: integer;
-begin
-  SetLength(result, ColumnCount);
-  for i := 0 to ColumnCount - 1 do
-    result[i] := GetValue(i);
-end;
 //------------------------------------------------------------------------------
 function TDataFrame.GetArrayValue(rowIndex, columnIndex: integer): Variant;
 var
   vec: IDynamicVector;
 begin
-  vec := self[columnIndex];
+  vec := ValueByIndex[columnIndex];
   result := vec[rowIndex];
 end;
 //------------------------------------------------------------------------------
@@ -107,7 +120,7 @@ function TDataFrame.GetArrayValueByIndexAndName(rowIndex: integer;
 var
   vec: IDynamicVector;
 begin
-  vec := self[columnName];
+  vec := ValueByName[columnName];
   result := vec[rowIndex];
 end;
 //------------------------------------------------------------------------------
@@ -116,7 +129,7 @@ var
   vec: IDynamicVector;
   ix: integer;
 begin
-  vec := self[columnName];
+  vec := ValueByName[columnName];
 
   ix := RowIndexFromName(rowName);
   result := vec[ix];
@@ -150,7 +163,7 @@ begin
     result := 0
   else
   begin
-    vec := GetValue(0);
+    vec := ValueByIndex[0];
     result := vec.VectorLength;
   end;
 end;
@@ -160,7 +173,6 @@ var
   rowNamesSymbol: ISymbolicExpression;
   rowNamesExpr: ISymbolicExpression;
   rowNamesVector: ICharacterVector;
-  length: integer;
 begin
   rowNamesSymbol := TEngineExtension(Engine).GetPredefinedSymbol(cRowNamesSymbolName);
 
@@ -170,9 +182,7 @@ begin
   rowNamesVector := rowNamesExpr.AsCharacter;
   if rowNamesVector = nil then Exit(nil);
 
-  length := (rowNamesVector as TCharacterVector).VectorLength;
-  SetLength(result, length);
-  (rowNamesVector as TCharacterVector).CopyTo(result, length);
+  result := rowNamesVector.ToArray;
 end;
 //------------------------------------------------------------------------------
 function TDataFrame.GetRows: IList<IDataFrameRow>;
@@ -186,6 +196,7 @@ begin
   for i := 0 to numRows - 1 do
     result.Add(GetRow(i));
 end;
+
 //------------------------------------------------------------------------------
 function TDataFrame.RowIndexFromName(rowName: string): integer;
 var
@@ -214,27 +225,12 @@ begin
   result := ix;
 end;
 //------------------------------------------------------------------------------
-function TDataFrame.GetValue(columnIndex: integer): IDynamicVector;    // GetColumn in R.NET
-var
-  PPtr: PSEXPREC;
-begin
-  if (columnIndex < 0) or (columnIndex >= VectorLength) then
-    raise EopaRException.Create('Error: DataFrame column index out of bounds');
-
-  PPtr := PSEXPREC(PPointerArray(DataPointer)^[columnIndex]);
-
-  if (PPtr = nil) or (PPtr = TEngineExtension(Engine).NilValue) then
-    result := nil
-  else
-    result := TDynamicVector.Create(Engine, PPtr);
-end;
-//------------------------------------------------------------------------------
 procedure TDataFrame.SetArrayValue(rowIndex, columnIndex: integer;
   const Value: Variant);
 var
   vec: IDynamicVector;
 begin
-  vec := self[columnIndex];
+  vec := ValueByIndex[columnIndex];
   vec[rowIndex] := Value;
 end;
 //------------------------------------------------------------------------------
@@ -243,7 +239,7 @@ procedure TDataFrame.SetArrayValueByIndexAndName(rowIndex: integer;
 var
   vec: IDynamicVector;
 begin
-  vec := self[columnName];
+  vec := ValueByName[columnName];
   vec[rowIndex] := Value;
 end;
 //------------------------------------------------------------------------------
@@ -253,33 +249,11 @@ var
   vec: IDynamicVector;
   ix: integer;
 begin
-  vec := self[columnName];
+  vec := ValueByName[columnName];
   ix := RowIndexFromName(rowName);
   vec[ix] := Value;
 end;
-//------------------------------------------------------------------------------
-procedure TDataFrame.SetValue(columnIndex: integer; value: IDynamicVector);   // SetColumn in R.NET
-var
-  PData: PSEXPREC;
-begin
-  if (columnIndex < 0) or (columnIndex >= VectorLength) then
-    raise EopaRException.Create('Error: DataFrame column index out of bounds');
 
-  if value = nil then
-    PData := TEngineExtension(Engine).NilValue
-  else
-    PData := (value as TSymbolicExpression).Handle;
-
-  PPointerArray(DataPointer)^[columnIndex] := PData;
-end;
-//------------------------------------------------------------------------------
-procedure TDataFrame.SetVectorDirect(const values: TArray<IDynamicVector>);
-var
-  i: integer;
-begin
-  for i := 0 to Length(values) - 1 do
-    SetValue(i, values[i]);
-end;
 
 end.
 

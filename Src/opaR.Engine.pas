@@ -58,7 +58,6 @@ type
     class var FEnvironmentIsSet: boolean;
     class var FdllHandle: HMODULE;
     class var FDefaultDevice: ICharacterDevice;
-    class var FDLLPath: string;
     FRapi: TRapi;
     FIsRunning: boolean;
     FId: string;
@@ -66,11 +65,10 @@ type
     FDeviceAdapter: TCharacterDeviceAdapter;
     FEmptyEnvironment: IREnvironment;
     FGlobalEnvironment: IREnvironment;
-    FDisposed: boolean;
     FAutoPrint: boolean;
     function GetHandle: HMODULE;
-    function LoadRDLL(path, dllName: string): HMODULE;
-    class function CreateInstance(id: string = ''; dllName: string = ''): IREngine;
+    function LoadRDLL: HMODULE;
+    class function CreateInstance(const ID: string): IREngine;
     function GetDisposed: boolean;
     function GetEmptyEnvironment: IREnvironment;
     function GetNilValue: PSEXPREC;
@@ -83,13 +81,15 @@ type
     function GetIsRunning: boolean;
     function GetRapi: TRapi;
   public
-    constructor Create(id, dllName: string);
+    constructor Create(const aID: string);
     destructor Destroy; override;
     function DllVersion: string;
     class function BuildRArgv(parameter: TStartupParameter): TPAnsiCharArray;
     class function EngineName: string;
-    class function GetInstance(dllName: string = ''; initialize: boolean = true;
-      parameter: TStartupParameter = nil;  device: ICharacterDevice = nil): IREngine;
+    class function GetInstance(initialize: boolean = true; parameter:
+        TStartupParameter = nil; device: ICharacterDevice = nil): IREngine;
+    class procedure SetEnvironmentVariables(aRHomeDir: string = '');
+    class procedure InitializeClassVariables;
 
     function CreateCharacter(value: string): ICharacterVector;
     function CreateInteger(value: integer): IIntegerVector;
@@ -103,6 +103,11 @@ type
     function CreateNumericVector(arr: TArray<double>): INumericVector;
     function CreateRawVector(arr: TArray<Byte>): IRawVector;
 
+    function CreateIntegerMatrix(value: TDynMatrix<integer>): IIntegerMatrix;
+    function CreateNumericMatrix(value: TDynMatrix<double>): INumericMatrix;
+    function CreateCharacterMatrix(value: TDynMatrix<string>): ICharacterMatrix;
+    function CreateLogicalMatrix(value: TDynMatrix<LongBool>): ILogicalMatrix;
+
     function Evaluate(statement: string): ISymbolicExpression;
     function EvaluateAsList(statement: string): IGenericVector;
     function GetPredefinedSymbol(symbolName: string): ISymbolicExpression;
@@ -110,8 +115,6 @@ type
     function GetSymbol(symbolName: string): ISymbolicExpression; overload;
     function GetSymbol(symbolName: string; env: IREnvironment): ISymbolicExpression; overload;
     function GetVisible: boolean;
-    class procedure SetDefaultDevice(value: ICharacterDevice);
-    class procedure SetEnvironmentVariables(path: string = ''; homeDir: string = '');
     procedure Initialize(parameter: TStartupParameter = nil;
       device: ICharacterDevice = nil; setupMainLoop: boolean = true);
     procedure SetSymbol(name: string; expression: ISymbolicExpression); overload;
@@ -134,7 +137,11 @@ uses
   opaR.IntegerVector,
   opaR.LogicalVector,
   opaR.CharacterVector,
-  opaR.RawVector;
+  opaR.RawVector,
+  opaR.IntegerMatrix,
+  opaR.CharacterMatrix,
+  opaR.NumericMatrix,
+  opaR.LogicalMatrix;
 
 const
   {$IFDEF WIN32}
@@ -158,20 +165,19 @@ begin
     raise EopaRException.Create('This engine is not running. You may have forgotten to call Initialize');
 end;
 //------------------------------------------------------------------------------
-constructor TREngine.Create(id, dllName: string);
+constructor TREngine.Create(const aID: string);
 begin
   // -- In R.NET the REngine class descends from UnmanagedDll and the R DLL
   // -- is loaded in the latter's constructor. Since we don't need any interop
   // -- we just load the DLL here in the TREngine constructor.
   FIsRunning := false;
-  FId := id;
-  FDisposed := false;
+  FId := aID;
   FAutoPrint := true;
-  //FEnableLock := true;
 
-  FdllHandle := LoadRDLL({FDLLPath}'', dllName);
-  if FdllHandle = 0 then
-    raise EopaRException.Create('Error: Unable to load R DLL from path ' + FDLLPath);
+  if not FEnvironmentIsSet then
+    SetEnvironmentVariables;
+
+  FdllHandle := LoadRDLL;
 end;
 //------------------------------------------------------------------------------
 function TREngine.CreateCharacter(value: string): ICharacterVector;
@@ -190,16 +196,13 @@ begin
   result := TCharacterVector.Create(self as IREngine, arr);
 end;
 //------------------------------------------------------------------------------
-class function TREngine.GetInstance(dllName: string = ''; initialize: boolean = true;
-  parameter: TStartupParameter = nil;  device: ICharacterDevice = nil): IREngine;
+class function TREngine.GetInstance(initialize: boolean = true; parameter:
+    TStartupParameter = nil; device: ICharacterDevice = nil): IREngine;
 begin
-  if not FEnvironmentIsSet then
-    SetEnvironmentVariables;
-
   // -- Normally, dllName will be empty at this point.
   if FEngine = nil then
   begin
-    FEngine := CreateInstance(EngineName, dllName);
+    FEngine := CreateInstance(EngineName);
 
     if initialize then
       FEngine.Initialize(parameter, device);
@@ -215,27 +218,26 @@ begin
   result := FIsRunning;
 end;
 //------------------------------------------------------------------------------
-function TREngine.LoadRDLL(path, dllName: string): HMODULE;
+function TREngine.LoadRDLL: HMODULE;
+var
+  correctRDllName: string;
 begin
-  result := SafeLoadLibrary(dllName);
+  correctRDllName := REnvironmentPaths.RLibraryFileName;
+  result := SafeLoadLibrary(correctRDllName);
 
-  {currDir := TDirectory.GetCurrentDirectory;
-  try
-    TDirectory.SetCurrentDirectory(TPath.GetDirectoryName(path));
-    result := SafeLoadLibrary(path + dllName);
-  finally
-    TDirectory.SetCurrentDirectory(currDir);
-  end;}
+  if result = 0 then
+  begin
+    raise EopaRException.CreateFmt('Unable to load the R library: "%s". ' +
+          'The current R_HOME value is "%s"', [correctRDllName, REnvironmentPaths.RHome]);
+  end;
 end;
 //------------------------------------------------------------------------------
-class function TREngine.CreateInstance(id, dllName: string): IREngine;
+class function TREngine.CreateInstance(const ID: string): IREngine;
 begin
-  if Trim(id) = '' then
+  if Trim(ID) = '' then
     raise EopaRException.Create('Error: Empty ID is not allowed');
 
-  if dllName = '' then
-    dllName := TNativeUtility.GetRLibraryFileName;
-  result := TREngine.Create(id, dllName);
+  result := TREngine.Create(ID);
 end;
 //------------------------------------------------------------------------------
 function TREngine.CreateInteger(value: integer): IIntegerVector;
@@ -302,11 +304,57 @@ begin
   result := TRawVector.Create(self as IREngine, arr);
 end;
 //------------------------------------------------------------------------------
-class procedure TREngine.SetEnvironmentVariables(path: string = ''; homeDir: string = '');
+function TREngine.CreateIntegerMatrix(value: TDynMatrix<integer>): IIntegerMatrix;
 begin
-  //if FdllHandle <> 0 then exit;
-  FEnvironmentIsSet := true;
-  TNativeUtility.SetEnvironmentVariables(path, homeDir);
+  if FdllHandle = 0 then
+    raise EopaRException.Create('Error: Null R DLL handle');
+
+  if not FIsRunning then
+    raise EopaRException.Create('Error: R Engine is not running');
+
+  result := TIntegerMatrix.Create(self as IREngine, value);
+end;
+//------------------------------------------------------------------------------
+function TREngine.CreateNumericMatrix(value: TDynMatrix<double>): INumericMatrix;
+begin
+  if FdllHandle = 0 then
+    raise EopaRException.Create('Error: Null R DLL handle');
+
+  if not FIsRunning then
+    raise EopaRException.Create('Error: R Engine is not running');
+
+  result := TNumericMatrix.Create(self as IREngine, value);
+end;
+//------------------------------------------------------------------------------
+function TREngine.CreateCharacterMatrix(value: TDynMatrix<string>): ICharacterMatrix;
+begin
+  if FdllHandle = 0 then
+    raise EopaRException.Create('Error: Null R DLL handle');
+
+  if not FIsRunning then
+    raise EopaRException.Create('Error: R Engine is not running');
+
+  result := TCharacterMatrix.Create(self as IREngine, value);
+end;
+//------------------------------------------------------------------------------
+function TREngine.CreateLogicalMatrix(value: TDynMatrix<LongBool>): ILogicalMatrix;
+begin
+  if FdllHandle = 0 then
+    raise EopaRException.Create('Error: Null R DLL handle');
+
+  if not FIsRunning then
+    raise EopaRException.Create('Error: R Engine is not running');
+
+  result := TLogicalMatrix.Create(self as IREngine, value);
+end;
+//------------------------------------------------------------------------------
+class procedure TREngine.SetEnvironmentVariables(aRHomeDir: string = '');
+begin
+  if not FEnvironmentIsSet then
+  begin
+    REnvironmentPaths.FindRInstallPathAndSetEnvVariables(aRHomeDir);
+    FEnvironmentIsSet := true;
+  end;
 end;
 //------------------------------------------------------------------------------
 procedure TREngine.SetSymbol(name: string; expression: ISymbolicExpression);
@@ -340,26 +388,20 @@ destructor TREngine.Destroy;
 begin
   FIsRunning := false;
 
-  if not FDisposed then
+  if not Disposed then
   begin
     // -- Clean up the R environment.
     FRapi.RunExitFinalizers;
     FRapi.CleanEd;
     FRapi.CleanTempDir;
-
-    FDisposed := true;
   end;
 
-  if assigned(FStartupParameter) then
-    FStartupParameter.Free;
-
-  if assigned(FDeviceAdapter) then    { TODO : Possibly inject FDeviceAdapter. }
-    FDeviceAdapter.Free;
+  FreeAndNil(FStartupParameter);
+  FreeAndNil(FDeviceAdapter);
 
   // -- FreeLibrary caused an intermittent AV in FMX in earlier versions.
   // -- Leave this comment in place for future reference.
   FRapi.UnloadDLL;
-  //FreeLibrary(FdllHandle);
   FdllHandle := 0;
 
   inherited;
@@ -372,7 +414,7 @@ end;
 //------------------------------------------------------------------------------
 function TREngine.GetDisposed: boolean;
 begin
-  result := FDisposed;
+  result := (FDllHandle = 0);
 end;
 //------------------------------------------------------------------------------
 function TREngine.GetEmptyEnvironment: IREnvironment;
@@ -526,7 +568,7 @@ begin
   // -- Build the argument list for the initialization call.
   R_argv := BuildRArgv(FStartupParameter);
   R_argc := Length(R_argv);
-  status := FRapi.InitializeR(R_argc, @R_argv[0]);
+  status := FRapi.InitializeR(R_argc, PPAnsiCharArray(@R_argv[0]));
 
   if status = 0 then
   begin
@@ -631,6 +673,16 @@ begin
     paramList.Free;
   end;
 end;
+
+class procedure TREngine.InitializeClassVariables;
+begin
+  FEngine := nil;
+  FEnvironmentIsSet := False;
+  FdllHandle := 0;
+  // -- Note that in R.NET the default device is ConsoleDevice.
+  FDefaultDevice := TNullCharacterDevice.Create;
+end;
+
 //------------------------------------------------------------------------------
 procedure TREngine.SetAutoPrint(const Value: boolean);
 begin
@@ -644,18 +696,8 @@ begin
     pfMacOS, pfLinux: SetSymbolValue('R_SignalHandlers', 0);
   end;
 end;
-//------------------------------------------------------------------------------
-class procedure TREngine.SetDefaultDevice(value: ICharacterDevice);
-begin
-  FDefaultDevice := value;
-end;
 
-
-// -- Note that in R.NET the default device is ConsoleDevice.
 initialization
-  //TREngine.SetDefaultDevice(TConsoleDevice.Create as ICharacterDevice);
-  TREngine.SetDefaultDevice(TNullCharacterDevice.Create);
-
-
+  TREngine.InitializeClassVariables;
 
 end.

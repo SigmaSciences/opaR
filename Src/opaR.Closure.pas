@@ -22,7 +22,11 @@ THOSE OF NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 interface
 
 uses
+  {$IFNDEF NO_SPRING}
   Spring.Collections.Dictionaries,
+  {$ELSE}
+  System.Generics.Collections,
+  {$ENDIF}
 
   opaR.Utils,
   opaR.SEXPREC,
@@ -35,7 +39,7 @@ uses
 type
   TRClosure = class(TRFunction)
   private
-    function GetArgumentNames: TArray<string>;
+    //function GetArgumentNames: TArray<string>;
     function GetArguments: IPairList;
     function GetBody: IRLanguage;
     function GetEnvironment: IREnvironment;
@@ -59,35 +63,28 @@ uses
 { TRClosure }
 
 //------------------------------------------------------------------------------
+{
 function TRClosure.GetArgumentNames: TArray<string>;
 begin
-  { TODO : TRClosure.GetArgumentNames }         // -- Not used internally by R.NET - implement later.
+  // TODO : TRClosure.GetArgumentNames          // -- Not used internally by R.NET - implement later.
   raise EopaRException.Create('TRClosure.GetArgumentNames not yet implemented');
   result := nil;
 end;
+}
 //------------------------------------------------------------------------------
 function TRClosure.GetArguments: IPairList;
-var
-  sexp: TSEXPREC;
 begin
-  sexp := GetInternalStructure;
-  result := TPairList.Create(Engine, sexp.closxp.formals);
+  result := TPairList.Create(Engine, Engine.Rapi.FORMALS(Handle));
 end;
 //------------------------------------------------------------------------------
 function TRClosure.GetBody: IRLanguage;
-var
-  sexp: TSEXPREC;
 begin
-  sexp := GetInternalStructure;
-  result := TRLanguage.Create(Engine, sexp.closxp.body);
+  result := TRLanguage.Create(Engine, Engine.Rapi.BODY(Handle));
 end;
 //------------------------------------------------------------------------------
 function TRClosure.GetEnvironment: IREnvironment;
-var
-  sexp: TSEXPREC;
 begin
-  sexp := GetInternalStructure;
-  result := TREnvironment.Create(Engine, sexp.closxp.env);
+  result := TREnvironment.Create(Engine, Engine.Rapi.CLOENV(Handle));
 end;
 //------------------------------------------------------------------------------
 function TRClosure.Invoke(arg: ISymbolicExpression): ISymbolicExpression;

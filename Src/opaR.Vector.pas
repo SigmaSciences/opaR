@@ -37,13 +37,13 @@ interface
 uses
   System.Types,
 
+  {$IFNDEF NO_SPRING}
   Spring.Collections,
+  {$ENDIF}
 
   opaR.Interfaces,
-  opaR.VectorUtils,
   opaR.Utils,
   opaR.DLLFunctions,
-  opaR.VECTOR_SEXPREC,
   opaR.SEXPREC,
   opaR.ProtectedPointer,
   opaR.SymbolicExpression;
@@ -66,33 +66,46 @@ type
   private
     function GetIndex(const name: string): integer;
     function GetLength: integer;
-    function GetDataPointer: PSEXPREC;
-    procedure SetVector(const values: TArray<T>);
-    function GetValueByName(const name: string): T; virtual;
-    procedure SetValueByName(const name: string; value: T); virtual;
+    function GetValueByName(const name: string): T;
+    procedure SetValueByName(const name: string; value: T);
   protected
-    function GetArrayFast: TArray<T>; virtual; abstract;
+    procedure PopulateArrayFastInternal(aArrayToPopulate: TArray<T>); virtual;
+        abstract;
     function GetDataSize: integer; virtual; abstract;
-    function GetOffset(index: integer): integer;
-    function GetValue(ix: integer): T; virtual; abstract;
-    procedure SetValue(ix: integer; value: T); virtual; abstract;
+    function GetValueByIndex(const aIndex: integer): T; virtual; abstract;
+    procedure SetValueByIndex(const aIndex: integer; const value: T); virtual;
+        abstract;
+    procedure SetVectorDirect(const aNewValues: TArray<T>); virtual; abstract;
   public
     constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
     constructor Create(const engine: IREngine;
       expressionType: TSymbolicExpressionType; vecLength: integer); overload;
+    {$IFNDEF NO_SPRING}
     constructor Create(const engine: IREngine;
       expressionType: TSymbolicExpressionType; const vector: IEnumerable<T>); overload;
+    {$ENDIF}
     function First: T;
     function GetEnumerator: IVectorEnumerator<T>;
     function Names: TArray<string>;
+    procedure SetVector(const aNewValues: TArray<T>);
     function ToArray: TArray<T>;
-    //procedure CopyTo(destination: TArray<T>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); virtual; abstract;
-    procedure SetVectorDirect(const values: TArray<T>); virtual; abstract;
-    property DataPointer: PSEXPREC read GetDataPointer;
     property DataSize: integer read GetDataSize;
     property VectorLength: integer read GetLength;
-    property Values[ix: integer]: T read GetValue write SetValue; default;
-    property Values[const name: string]: T read GetValueByName write SetValueByName; default;
+    property ValueByIndex[const aIndex: integer]: T read GetValueByIndex
+        write SetValueByIndex; default;
+    property ValueByName[const name: string]: T read GetValueByName write
+        SetValueByName;
+  end;
+
+
+  TRObjectVector<TObj> = class abstract (TRVector<TObj>)
+  protected
+    function GetValueByIndex(const aIndex: integer): TObj; override;
+    procedure SetValueByIndex(const aIndex: integer; const aValue: TObj); override;
+    function ConvertPSEXPRECToValue(const aValue: PSEXPREC): TObj; virtual; abstract;
+    function ConvertValueToPSEXPREC(const aValue: TObj): PSEXPREC; virtual; abstract;
+    procedure PopulateArrayFastInternal(aArrayToPopulate: TArray<TObj>); override;
+    procedure SetVectorDirect(const aNewValues: TArray<TObj>); override;
   end;
 
 
@@ -115,7 +128,7 @@ end;
 //------------------------------------------------------------------------------
 function TVectorEnumerator<T>.GetCurrent: T;
 begin
-  result := FVector.GetValue(FIndex);
+  result := FVector.GetValueByIndex(FIndex);
 end;
 //------------------------------------------------------------------------------
 function TVectorEnumerator<T>.MoveNext: Boolean;
@@ -140,12 +153,7 @@ begin
   // -- First get the pointer to the R expression.
   pExpr := Engine.Rapi.AllocVector(expressionType, vecLength);
 
-  inherited Create(engine, pExpr);
-
-  { TODO : TRVector - do we need this empty FArray copy (from R.NET)? }
-  //SetLength(FArray, vecLength * DataSize);
-  // -- Now copy the array - this just initializes the R vector.
-  //CopyMemory(DataPointer, @FArray[0], vecLength * DataSize);
+  Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
 constructor TRVector<T>.Create(const engine: IREngine; pExpr: PSEXPREC);
@@ -153,29 +161,33 @@ begin
   inherited Create(engine, pExpr);
 end;
 //------------------------------------------------------------------------------
+{$IFNDEF NO_SPRING}
 constructor TRVector<T>.Create(const engine: IREngine;
   expressionType: TSymbolicExpressionType; const vector: IEnumerable<T>);
 begin
   Create(engine, expressionType, vector.Count);
   SetVector(vector.ToArray);
 end;
+{$ENDIF}
 //------------------------------------------------------------------------------
 function TRVector<T>.First: T;
 begin
-  result := GetValue(0);
+  result := GetValueByIndex(0);
 end;
-//------------------------------------------------------------------------------
-function TRVector<T>.GetDataPointer: PSEXPREC;
+
+function TRVector<T>.ToArray: TArray<T>;
 var
-  offset: integer;
-  h: PSEXPREC;
+  pp: TProtectedPointer;
 begin
-  // -- TVECTOR_SEXPREC is the header of the vector, with the actual data behind it.
-  offset := SizeOf(TVECTOR_SEXPREC);
-  h := Handle;
-  result := PSEXPREC(NativeInt(h) + offset);
+  SetLength(result, VectorLength);
+  pp := TProtectedPointer.Create(self);
+  try
+    PopulateArrayFastInternal(result);
+  finally
+    pp.Free;
+  end;
 end;
-//------------------------------------------------------------------------------
+////------------------------------------------------------------------------------
 function TRVector<T>.GetEnumerator: IVectorEnumerator<T>;
 begin
   result := TVectorEnumerator<T>.Create(self);
@@ -185,19 +197,14 @@ function TRVector<T>.GetLength: integer;
 begin
   result := Engine.Rapi.Length(Handle);     // -- Handle is the pointer (PSEXPREC) to the underlying SEXPREC structure.
 end;
-//------------------------------------------------------------------------------
-function TRVector<T>.GetOffset(index: integer): integer;
-begin
-  result := DataSize * index;
-end;
-//------------------------------------------------------------------------------
+////------------------------------------------------------------------------------
 function TRVector<T>.GetValueByName(const name: string): T;
 var
   ix: integer;
 begin
   ix := GetIndex(name);
   if ix > -1 then
-    result := GetValue(ix);
+    result := GetValueByIndex(ix);
 end;
 //------------------------------------------------------------------------------
 function TRVector<T>.Names: TArray<string>;
@@ -230,7 +237,7 @@ var
 begin
   ix := GetIndex(name);
   if ix > -1 then
-    SetValue(ix, value);
+    SetValueByIndex(ix, value);
 end;
 //------------------------------------------------------------------------------
 function TRVector<T>.GetIndex(const name: string): integer;
@@ -255,32 +262,80 @@ begin
     end;
   end;
 end;
+
 //------------------------------------------------------------------------------
-procedure TRVector<T>.SetVector(const values: TArray<T>);
+procedure TRVector<T>.SetVector(const aNewValues: TArray<T>);
 var
   pp: TProtectedPointer;
 begin
-  if (Length(values) <> self.VectorLength) then
+  if (Length(aNewValues) <> self.VectorLength) then
     raise EopaRException.Create('Error: The length of the array provided differs from the vector length');
 
   pp := TProtectedPointer.Create(self);
   try
-    SetVectorDirect(values);
+    SetVectorDirect(aNewValues);
   finally
     pp.Free;
   end;
 end;
-//------------------------------------------------------------------------------
-function TRVector<T>.ToArray: TArray<T>;
+
+procedure TRObjectVector<TObj>.SetVectorDirect(const aNewValues: TArray<TObj>);
 var
+  cntr: integer;
+begin
+  inherited;
+  for cntr := 0 to VectorLength - 1 do
+    ValueByIndex[cntr] := aNewValues[cntr];
+end;
+
+//------------------------------------------------------------------------------
+
+function TRObjectVector<TObj>.GetValueByIndex(const aIndex: integer): TObj;
+var
+  PPtr: PSEXPREC;
   pp: TProtectedPointer;
 begin
+  if (aIndex < 0) or (aIndex >= VectorLength) then
+    raise EopaRException.Create('Error: Vector index out of bounds');
+
   pp := TProtectedPointer.Create(self);
   try
-    result := GetArrayFast;
+    PPtr := Engine.Rapi.VectorElt(Handle, aIndex);
+
+    result := ConvertPSEXPRECToValue(PPtr);
   finally
     pp.Free;
   end;
+end;
+
+procedure TRObjectVector<TObj>.SetValueByIndex(const aIndex: integer; const
+    aValue: TObj);
+var
+  PData: PSEXPREC;
+  pp: TProtectedPointer;
+begin
+  if (aIndex < 0) or (aIndex >= VectorLength) then
+    raise EopaRException.Create('Error: Vector index out of bounds');
+
+  pp := TProtectedPointer.Create(self);
+  try
+    PData := ConvertValueToPSEXPREC(aValue);
+
+    Engine.Rapi.SetVectorElt(Handle, aIndex, PData);
+  finally
+    pp.Free;
+  end;
+end;
+
+procedure TRObjectVector<TObj>.PopulateArrayFastInternal(aArrayToPopulate:
+    TArray<TObj>);
+var
+  cntr: integer;
+begin
+  inherited;
+  // The result array must have been sized correctly prior to this call
+  for cntr := 0 to Length(aArrayToPopulate) - 1 do
+    aArrayToPopulate[cntr] := ValueByIndex[cntr];
 end;
 
 end.

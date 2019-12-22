@@ -27,7 +27,9 @@ uses
   {$ENDIF}
   System.Types,
 
+  {$IFNDEF NO_SPRING}
   Spring.Collections,
+  {$ENDIF}
 
   opaR.Interfaces,
   opaR.SEXPREC,
@@ -40,49 +42,28 @@ type
   TIntegerVector = class(TRVector<integer>, IIntegerVector)
   protected
     function GetDataSize: integer; override;
-    function GetValue(ix: integer): integer; override;
-    procedure SetValue(ix: integer; value: integer); override;
+    function GetValueByIndex(const aIndex: integer): integer; override;
+    procedure SetValueByIndex(const aIndex, aValue: integer); override;
     function GetNACode: integer;
+    procedure PopulateArrayFastInternal(aArrayToPopulate: TArray<Integer>);
+        override;
+    procedure SetVectorDirect(const aNewValues: TArray<Integer>); override;
   public
     constructor Create(const engine: IREngine; pExpr: PSEXPREC); overload;
     constructor Create(const engine: IREngine; vecLength: integer); overload;
+    {$IFNDEF NO_SPRING}
     constructor Create(const engine: IREngine; const vector: IEnumerable<integer>); overload;
+    {$ENDIF}
     constructor Create(const engine: IREngine; const vector: TArray<integer>); overload;
-    function GetArrayFast: TArray<integer>; override;
-    procedure CopyTo(const destination: TArray<integer>; copyCount: integer; sourceIndex: integer = 0; destinationIndex: integer = 0); //override;
-    procedure SetVectorDirect(const values: TArray<integer>); override;
     property NACode: integer read GetNACode;
   end;
 
 implementation
 
+uses
+  opaR.VectorUtils;
+
 { TIntegerVector }
-
-//------------------------------------------------------------------------------
-procedure TIntegerVector.CopyTo(const destination: TArray<integer>; copyCount,
-  sourceIndex, destinationIndex: integer);
-var
-  offset: integer;
-  PData: PInteger;
-  PDestination: PInteger;
-begin
-  if destination = nil then
-    raise EopaRException.Create('Error: Destination array cannot be nil');
-
-  if (copyCount <= 0) then
-    raise EopaRException.Create('Error: Number of elements to copy must be > 0');
-
-  if (sourceIndex < 0) or (VectorLength < sourceIndex + copyCount) then
-    raise EopaRException.Create('Error: Source array index out of bounds');
-
-  if (destinationIndex < 0) or (Length(destination) < destinationIndex + copyCount) then
-    raise EopaRException.Create('Error: Destination array index out of bounds');
-
-  offset := GetOffset(sourceIndex);
-  PData := PInteger(NativeInt(DataPointer) + offset);
-  PDestination := PInteger(NativeInt(PInteger(destination)) + destinationIndex * SizeOf(integer));
-  CopyMemory(PDestination, PData, copyCount * DataSize);
-end;
 //------------------------------------------------------------------------------
 constructor TIntegerVector.Create(const engine: IREngine; pExpr: PSEXPREC);
 begin
@@ -109,9 +90,10 @@ begin
   Create(engine, pExpr);
 
   // -- Now copy the array data.
-  CopyMemory(DataPointer, PInteger(vector), Length(vector) * DataSize);
+  SetVector(vector);
 end;
 //------------------------------------------------------------------------------
+{$IFNDEF NO_SPRING}
 constructor TIntegerVector.Create(const engine: IREngine;
   const vector: IEnumerable<integer>);
 begin
@@ -119,12 +101,7 @@ begin
   // -- calls SetVectorDirect (implemented in this class).
   inherited Create(engine, TSymbolicExpressionType.IntegerVector, vector);
 end;
-//------------------------------------------------------------------------------
-function TIntegerVector.GetArrayFast: TArray<integer>;
-begin
-  SetLength(result, self.VectorLength);
-  CopyMemory(PInteger(result), DataPointer, self.VectorLength * DataSize);
-end;
+{$ENDIF}
 //------------------------------------------------------------------------------
 function TIntegerVector.GetDataSize: integer;
 begin
@@ -137,48 +114,51 @@ begin
   result := -1 * MaxInt - 1;
 end;
 //------------------------------------------------------------------------------
-function TIntegerVector.GetValue(ix: integer): integer;
+function TIntegerVector.GetValueByIndex(const aIndex: integer): integer;
 var
-  pp: TProtectedPointer;
   PData: PInteger;
-  offset: integer;
 begin
-  if (ix < 0) or (ix >= VectorLength) then
+  if (aIndex < 0) or (aIndex >= VectorLength) then
     raise EopaRException.Create('Error: Vector index out of bounds');
 
-  pp := TProtectedPointer.Create(self);
-  try
-    offset := GetOffset(ix);
-    PData := PInteger(NativeInt(DataPointer) + offset);
-    result := PData^;
-  finally
-    pp.Free;
-  end;
+
+  PData := TVectorAccessUtility.GetPointerToIntegerInVector(Engine, Handle, aIndex);
+  result := PData^;
 end;
-//------------------------------------------------------------------------------
-procedure TIntegerVector.SetValue(ix, value: integer);
+
+procedure TIntegerVector.PopulateArrayFastInternal(aArrayToPopulate:
+    TArray<Integer>);
 var
-  pp: TProtectedPointer;
   PData: PInteger;
-  offset: integer;
+  PSource: PInteger;
 begin
-  if (ix < 0) or (ix >= VectorLength) then
+  inherited;
+  PData := @(aArrayToPopulate[0]);
+  PSource := TVectorAccessUtility.GetPointerToIntegerInVector(Engine, Handle, 0);
+  CopyMemory(PData, PSource, Length(aArrayToPopulate) * DataSize);
+end;
+
+//------------------------------------------------------------------------------
+procedure TIntegerVector.SetValueByIndex(const aIndex, aValue: integer);
+var
+  PData: PInteger;
+begin
+  if (aIndex < 0) or (aIndex >= VectorLength) then
     raise EopaRException.Create('Error: Vector index out of bounds');
 
-  pp := TProtectedPointer.Create(self);
-  try
-    offset := GetOffset(ix);
-    PData := PInteger(NativeInt(DataPointer) + offset);
-    PData^ := value;
-  finally
-    pp.Free;
-  end;
+  PData := TVectorAccessUtility.GetPointerToIntegerInVector(Engine, Handle, aIndex);
+  PData^ := aValue;
 end;
-//------------------------------------------------------------------------------
-procedure TIntegerVector.SetVectorDirect(const values: TArray<integer>);
+
+procedure TIntegerVector.SetVectorDirect(const aNewValues: TArray<Integer>);
+var
+  PData: PInteger;
+  PSource: PInteger;
 begin
-  // -- Delphi, .NET and R all use contiguous memory blocks for 1D arrays.
-  CopyMemory(DataPointer, PInteger(values), Length(values) * DataSize);
+  inherited;
+  PData := TVectorAccessUtility.GetPointerToIntegerInVector(Engine, Handle, 0);
+  PSource := @(aNewValues[0]);
+  CopyMemory(PData, PSource, Length(aNewValues) * DataSize);
 end;
 
 end.

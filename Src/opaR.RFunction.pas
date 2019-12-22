@@ -31,8 +31,17 @@ Requires:
 interface
 
 uses
+  {$IFNDEF NO_SPRING}
   Spring.Collections.Dictionaries,
+  {$ELSE}
+  System.Generics.Collections,
+  {$ENDIF}
+
+  {$IFNDEF VER300} // Delphi 10 Seattle
   Generics.Tuples,
+  {$ELSE}
+  Generics.Tuples,
+  {$ENDIF}
 
   opaR.SEXPREC,
   opaR.DLLFunctions,

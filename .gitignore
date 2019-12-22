@@ -1,0 +1,11 @@
+Src/__history/*
+Src/__recovery/*
+Tests/__history/*
+*.dcu
+Tests/opaRTests.dproj.local
+Tests/opaRTests.dsk
+Tests/opaRTests.identcache
+Tests/opaRTests.res
+Tests/opaRTests.stat
+Tests/Win32/*
+*.~dsk
